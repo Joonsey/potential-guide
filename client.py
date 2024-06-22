@@ -68,6 +68,9 @@ class Client:
         for i in range(player_count):
             data = packet.payload[i * size: size + size * i]
             id, x, y, score = PayloadFormat.UPDATE.unpack(data)
+            if id == self.id:
+                continue
+
             if id in self.players.keys():
                 player = self.players[id]
                 player.old_position = player.position
@@ -92,11 +95,8 @@ class Client:
             self.handle_update_packet(packet)
 
         if packet.packet_type == PacketType.ONBOARD:
-
             id, = PayloadFormat.ONBOARD.unpack(packet.payload)
-            print(id)
             self.id = id
-            print(self.id)
 
         if packet.packet_type == PacketType.SHOOT:
             x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
