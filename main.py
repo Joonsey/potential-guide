@@ -13,14 +13,14 @@ def lerp(a: float, b: float, f: float):
 
 
 class Player:
-    SPEED = 1
+    SPEED = 50
 
     def __init__(self) -> None:
         self.position = pygame.Vector2()
 
-    def handle_input(self, keys, dt: int) -> None:
+    def handle_input(self, keys, dt: float) -> None:
         # TODO: refactor
-        velocity = self.SPEED * dt / 10
+        velocity = self.SPEED * dt
         if keys[pygame.K_w]:
             self.position.y -= velocity
         if keys[pygame.K_s]:
@@ -38,12 +38,12 @@ class Player:
 
 
 class Game:
-    SHOOT_COOLDOWN = 50
+    SHOOT_COOLDOWN = 5
     def __init__(self) -> None:
         self.client = Client()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.player = Player()
-        self.shoot_cooldown = self.SHOOT_COOLDOWN
+        self.shoot_cooldown = 0
 
     def run_local(self) -> None:
         s = Server()
@@ -71,12 +71,12 @@ class Game:
         surf.fill((255, 128, 0))
         self.screen.blit(surf, position)
 
-    def update_projectile(self, projectile: Projectile, dt: int) -> None:
+    def update_projectile(self, projectile: Projectile, dt: float) -> None:
         x, y = projectile.position
         vel_x, vel_y = projectile.velocity
 
-        pos_x = x + vel_x * dt / 10
-        pos_y = y + vel_y * dt / 10
+        pos_x = x + vel_x * dt * Projectile.SPEED
+        pos_y = y + vel_y * dt * Projectile.SPEED
 
         projectile.position = (pos_x, pos_y)
 
@@ -90,7 +90,7 @@ class Game:
         self.client.start()
 
         while True:
-            dt = self.clock.tick(120)
+            dt = self.clock.tick(120) / 1000
             self.screen.fill((128, 128, 128))
 
             keys = pygame.key.get_pressed()

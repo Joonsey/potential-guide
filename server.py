@@ -22,8 +22,9 @@ class Connection:
         self.score = 0
 
 class Projectile:
+    SPEED = 200  # this needs to be synced in client.Projectile.SPEED
     def __init__(self) -> None:
-        self.position = (0, 0)
+        self.position: tuple[float, float] = (0, 0)
         self.velocity = (0, 0)
         self.alive = True
 
@@ -45,11 +46,28 @@ class Server:
     def send_hit(self):
         ...
 
+    def update_projectiles(self, delta_time: float) -> None:
+        for _, proj in self.projectiles.items():
+            if not proj.alive:
+                continue
+
+            x, y = proj.position
+            vel_x, vel_y = proj.velocity
+
+            pos_x = x + vel_x * delta_time * proj.SPEED
+            pos_y = y + vel_y * delta_time * proj.SPEED
+
+            proj.position = (pos_x, pos_y)
+
+    def check_collisions(self) -> None:
+        pass
+
     def loop(self) -> None:
         """
         Entry point for main update loop
         """
         LOGGER.info("main loop up!")
+        self.last_iter_time = 0
         while self.running:
             start_time = time.time()
 
@@ -64,6 +82,9 @@ class Server:
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)
 
+            self.update_projectiles(time.time() - self.last_iter_time)
+            self.check_collisions()
+
             self._wait_for_tick(start_time)
 
     def _wait_for_tick(self, start_time) -> None:
@@ -71,6 +92,7 @@ class Server:
         Waiting for the next tick to be due, targetting self.tick_rate
         """
         end_time = time.time()
+        self.last_iter_time = end_time
         target = 1 / self.tick_rate
         delta_time = end_time - start_time
         time.sleep(target - delta_time)

@@ -13,6 +13,7 @@ LOGGER = logging.getLogger("Client")
 
 
 class Projectile:
+    SPEED = 200  # this needs to be synced in server.Projectile.SPEED
     def __init__(self) -> None:
         self.position: tuple[float, float] = (0, 0)
         self.velocity: tuple[float, float] = (0, 0)
