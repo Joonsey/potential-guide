@@ -20,7 +20,8 @@ class Projectile:
 
 class Player:
     def __init__(self) -> None:
-        self.old_position: tuple[float, float] | None = None  # used for interpolation
+        # used for interpolation
+        self.old_position: tuple[float, float] | None = None
         self.position: tuple[float, float] = (0, 0)
         self.name = ""
         self.score = 0
@@ -36,7 +37,7 @@ class Client:
         self.address: str = "127.0.0.1"
         self.port: int = 5001
         self._sequence_number = 0
-        self.players: dict[int, Player] ={}
+        self.players: dict[int, Player] = {}
         self.projectiles: list[Projectile] = []
         self.id = 0
 
@@ -98,7 +99,8 @@ class Client:
             print(self.id)
 
         if packet.packet_type == PacketType.SHOOT:
-            x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)
+            x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
+                packet.payload)
             proj = Projectile()
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
@@ -115,9 +117,9 @@ class Client:
 
     def send_position(self, x: float, y: float) -> None:
         packet = Packet(PacketType.COORDINATES, self.sequence_number,
-            PayloadFormat.COORDINATES.pack(
-                self.id, x, y
-            ))
+                        PayloadFormat.COORDINATES.pack(
+                            self.id, x, y
+                        ))
         self._send_packet(packet)
 
     def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float]) -> None:

@@ -7,8 +7,9 @@ from client import Player as ClientPlayer
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
 
+
 def lerp(a: float, b: float, f: float):
-    return a * (1.0 - f) + (b * f);
+    return a * (1.0 - f) + (b * f)
 
 
 class Player:
@@ -50,8 +51,10 @@ class Game:
 
     def draw_player(self, player: ClientPlayer) -> None:
         if player.old_position:
-            pos_x = lerp(player.old_position[0], player.position[0], player.interpolation_t)
-            pos_y = lerp(player.old_position[1], player.position[1], player.interpolation_t)
+            pos_x = lerp(
+                player.old_position[0], player.position[0], player.interpolation_t)
+            pos_y = lerp(
+                player.old_position[1], player.position[1], player.interpolation_t)
             player.interpolation_t = min(player.interpolation_t + .20, 1)
             position = pos_x, pos_y
         else:
