@@ -38,10 +38,12 @@ class Player:
 
 
 class Game:
+    SHOOT_COOLDOWN = 50
     def __init__(self) -> None:
         self.client = Client()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.player = Player()
+        self.shoot_cooldown = self.SHOOT_COOLDOWN
 
     def run_local(self) -> None:
         s = Server()
@@ -93,12 +95,13 @@ class Game:
 
             keys = pygame.key.get_pressed()
             mouse = pygame.mouse.get_pressed()
-            if mouse[0]:
+            if mouse[0] and not self.shoot_cooldown:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 direction_vector = pygame.Vector2(
                     mouse_x, mouse_y) - self.player.position
                 direction_vector = direction_vector.normalize()
                 self.shoot((direction_vector.x, direction_vector.y))
+                self.shoot_cooldown = self.SHOOT_COOLDOWN
 
             self.player.handle_input(keys, dt)
             self.client.send_position(
@@ -112,6 +115,8 @@ class Game:
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, dt)
                 self.draw_projectile(projectile.position)
+
+            self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
             pygame.display.flip()
             pygame.event.pump()  # process event queue
