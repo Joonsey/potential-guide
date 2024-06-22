@@ -38,7 +38,7 @@ class Player:
 
 
 class Game:
-    SHOOT_COOLDOWN = 5
+    SHOOT_COOLDOWN = .05
     def __init__(self) -> None:
         self.client = Client()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))

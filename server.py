@@ -13,6 +13,15 @@ BUFF_SIZE = 1024
 LOGGER = logging.getLogger("Server")
 
 
+def check_collision(rect: tuple[float, float, float, float], other_rect: tuple[float, float, float, float]) -> bool:
+    x1, y1, w1, h1 = rect
+    x2, y2, w2, h2 = other_rect
+
+    overlap_x = (x1 < x2 + w2) and (x2 < x1 + w1)
+    overlap_y = (y1 < y2 + h2) and (y2 < y1 + h1)
+    return overlap_x and overlap_y
+
+
 class Connection:
     def __init__(self, addr) -> None:
         self.addr = addr
@@ -27,6 +36,8 @@ class Projectile:
         self.position: tuple[float, float] = (0, 0)
         self.velocity = (0, 0)
         self.alive = True
+        self.sender_id = 0
+        self.grace_period = 0.5
 
 class Server:
     def __init__(self) -> None:
@@ -48,6 +59,7 @@ class Server:
 
     def update_projectiles(self, delta_time: float) -> None:
         for _, proj in self.projectiles.items():
+            proj.grace_period = max(0, proj.grace_period - delta_time)
             if not proj.alive:
                 continue
 
@@ -60,7 +72,16 @@ class Server:
             proj.position = (pos_x, pos_y)
 
     def check_collisions(self) -> None:
-        pass
+        for proj in list(filter(lambda x: x.alive, self.projectiles.values())):
+            proj_rect = (proj.position[0], proj.position[1], 8, 8)
+            for player in self.connections.values():
+                if player.id == proj.sender_id and proj.grace_period:
+                    # if sender is owner, and there is grace period left we skip
+                    continue
+
+                player_rect = (player.position[0], player.position[1], 16, 16)
+                if check_collision(proj_rect, player_rect):
+                    self.send_hit()
 
     def loop(self) -> None:
         """
@@ -128,6 +149,7 @@ class Server:
             proj = Projectile()
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
+            proj.sender_id = self.connections[addr].id
             self.projectiles[len(self.projectiles)] = proj
 
             self.broadcast(packet)
