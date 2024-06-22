@@ -3,12 +3,16 @@ import threading
 
 from server import Server
 from client import Client, Projectile
+from client import Player as ClientPlayer
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
 
+def lerp(a: float, b: float, f: float):
+    return a * (1.0 - f) + (b * f);
+
 
 class Player:
-    SPEED = 4
+    SPEED = 1
 
     def __init__(self) -> None:
         self.position = pygame.Vector2()
@@ -44,7 +48,15 @@ class Game:
 
         self.run()
 
-    def draw_player(self, position: tuple[float, float]) -> None:
+    def draw_player(self, player: ClientPlayer) -> None:
+        if player.old_position:
+            pos_x = lerp(player.old_position[0], player.position[0], player.interpolation_t)
+            pos_y = lerp(player.old_position[1], player.position[1], player.interpolation_t)
+            player.interpolation_t = min(player.interpolation_t + .20, 1)
+            position = pos_x, pos_y
+        else:
+            position = player.position
+
         surf = pygame.Surface((16, 16))
         surf.fill((255, 0, 0))
         self.screen.blit(surf, position)
@@ -91,8 +103,8 @@ class Game:
 
             self.player.draw(self.screen)
 
-            for player in self.client.players:
-                self.draw_player(player.position)
+            for player in self.client.players.values():
+                self.draw_player(player)
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, dt)

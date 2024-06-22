@@ -16,6 +16,7 @@ LOGGER = logging.getLogger("Server")
 class Connection:
     def __init__(self, addr) -> None:
         self.addr = addr
+        self.id = 0
         self.position = (0, 0)
         self.name = ""
         self.score = 0
@@ -33,6 +34,7 @@ class Server:
         self.tick_rate = 20
         self.connections: dict[tuple[str, int], Connection] = {}
         self.projectiles: dict[int, Projectile] = {}
+        self._player_index = 0
 
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
@@ -54,6 +56,7 @@ class Server:
             update_data = b""
             for _, item in self.connections.items():
                 update_data += PayloadFormat.UPDATE.pack(
+                    item.id,
                     item.position[0],
                     item.position[1],
                     item.score
@@ -72,6 +75,16 @@ class Server:
         delta_time = end_time - start_time
         time.sleep(target - delta_time)
 
+    def onboard_player(self, packet, addr) -> None:
+        self._player_index += 1
+
+        name = packet.payload.decode()
+        self.connections[addr] = Connection(addr)
+        self.connections[addr].name = name
+        self.connections[addr].id = self._player_index
+        packet = Packet(PacketType.ONBOARD, 1, PayloadFormat.ONBOARD.pack(self._player_index))
+        self._send_packet(packet, addr)
+
     def handle_request(self, data: bytes, addr) -> None:
         LOGGER.debug("handling data: %s from %s", data, addr)
         try:
@@ -81,12 +94,11 @@ class Server:
             return
 
         if packet.packet_type == PacketType.CONNECT:
-            name = packet.payload.decode()
-            self.connections[addr] = Connection(addr)
-            self.connections[addr].name = name
+            self.onboard_player(packet, addr)
 
         if packet.packet_type == PacketType.COORDINATES:
-            position = PayloadFormat.COORDINATES.unpack(packet.payload)
+            _, x, y = PayloadFormat.COORDINATES.unpack(packet.payload)
+            position = (x, y)
             self.connections[addr].position = position
 
         if packet.packet_type == PacketType.SHOOT:

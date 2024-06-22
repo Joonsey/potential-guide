@@ -20,9 +20,11 @@ class Projectile:
 
 class Player:
     def __init__(self) -> None:
-        self.position = (0, 0)
+        self.old_position: tuple[float, float] | None = None  # used for interpolation
+        self.position: tuple[float, float] = (0, 0)
         self.name = ""
         self.score = 0
+        self.interpolation_t: float = 0
 
     def __repr__(self) -> str:
         return f"<Player {self.name}, {self.position}, {self.score}>"
@@ -34,8 +36,9 @@ class Client:
         self.address: str = "127.0.0.1"
         self.port: int = 5001
         self._sequence_number = 0
-        self.players: list[Player] = []
+        self.players: dict[int, Player] ={}
         self.projectiles: list[Projectile] = []
+        self.id = 0
 
     @property
     def sequence_number(self):
@@ -60,16 +63,21 @@ class Client:
     def handle_update_packet(self, packet: Packet) -> None:
         size = PayloadFormat.UPDATE.size
         player_count = len(packet.payload) // size
-        players_buffer = []
+
         for i in range(player_count):
             data = packet.payload[i * size: size + size * i]
-            x, y, score = PayloadFormat.UPDATE.unpack(data)
-            player = Player()
-            player.position = (x, y)
-            player.score = score
-            players_buffer.append(player)
+            id, x, y, score = PayloadFormat.UPDATE.unpack(data)
+            if id in self.players.keys():
+                player = self.players[id]
+                player.old_position = player.position
+                player.position = (x, y)
+                player.interpolation_t = 0
+            else:
+                player = Player()
+                player.position = (x, y)
 
-            self.players = players_buffer
+            player.score = score
+            self.players[id] = player
 
     def handle_response(self, data: bytes, addr) -> None:
         LOGGER.debug("handling data: %s from %s", data, addr)
@@ -81,6 +89,13 @@ class Client:
 
         if packet.packet_type == PacketType.UPDATE:
             self.handle_update_packet(packet)
+
+        if packet.packet_type == PacketType.ONBOARD:
+
+            id, = PayloadFormat.ONBOARD.unpack(packet.payload)
+            print(id)
+            self.id = id
+            print(self.id)
 
         if packet.packet_type == PacketType.SHOOT:
             x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)
@@ -100,7 +115,9 @@ class Client:
 
     def send_position(self, x: float, y: float) -> None:
         packet = Packet(PacketType.COORDINATES, self.sequence_number,
-                        PayloadFormat.COORDINATES.pack(x, y))
+            PayloadFormat.COORDINATES.pack(
+                self.id, x, y
+            ))
         self._send_packet(packet)
 
     def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float]) -> None:
