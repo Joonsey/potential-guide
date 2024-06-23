@@ -3,8 +3,9 @@ import threading
 import sys
 
 from arena import Arena
+from packet import LifecycleType
 from server import Server
-from client import Client, Projectile
+from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 
 DISPLAY_WIDTH, DISPLAY_HEIGHT = 1080, 720
@@ -21,6 +22,7 @@ class Player:
 
     def __init__(self) -> None:
         self.position = pygame.Vector2()
+        self.alive = True
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
@@ -57,7 +59,7 @@ class Player:
     def draw(self, screen: pygame.Surface):
         # TODO: refactor
         surf = pygame.Surface((16, 16))
-        surf.fill((0, 255, 0))
+        surf.fill((0, 255, 0) if self.alive else (80, 80, 80))
         screen.blit(surf, self.position)
 
 
@@ -67,20 +69,25 @@ class UI:
         self.font_size = FONT_SIZE
         self.font = pygame.font.Font(None, self.font_size)
 
-    def draw(self, players: list[ClientPlayer]) -> None:
+    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType) -> None:
         position_map = [
             {"topleft": (10, 10)},
             {"topright": (SCREEN_WIDTH - 10, 10)}
         ]
         for i, player in enumerate(players[:2]):
             player_text = self.font.render(
-                f"Player {player.id}: {player.score}", True, (0, 0, 0))  # White text
+                f"Player {player.id}: {player.score}", True, (0, 0, 0))
 
             # Calculate text positions
             rect = player_text.get_rect(**position_map[i])
 
             # Blit texts onto the screen
             self.ui_screen.blit(player_text, rect)
+
+
+        text = self.font.render(f"{lifecycle_state.name}", True, (0, 0, 0))
+        rect = text.get_rect(topleft=(SCREEN_WIDTH // 2, 10))
+        self.ui_screen.blit(text, rect)
 
 
 class Game:
@@ -117,7 +124,7 @@ class Game:
             position = player.position
 
         surf = pygame.Surface((16, 16))
-        surf.fill((255, 0, 0))
+        surf.fill((255, 0, 0) if player.alive else (80, 80, 80))
         self.screen.blit(surf, position)
 
     def draw_arena(self) -> None:
@@ -159,6 +166,20 @@ class Game:
         projectile.position = (new_pos_x, new_pos_y)
         projectile.velocity = (vel_x, vel_y)
 
+    def handle_event(self, event: Event) -> None:
+        if event.event_type == EventType.FORCE_MOVE:
+            self.player.position.x = event.data[0]
+            self.player.position.y = event.data[1]
+
+        elif event.event_type == EventType.HIT:
+            proj_id, hit_id = event.data
+
+            if hit_id == self.client.id:
+                self.player.alive = False
+
+        elif event.event_type == EventType.RESSURECT:
+            self.player.alive = True
+
     def shoot(self, velocity: tuple[float, float]) -> None:
         pos = self.player.position
         self.client.send_shoot((pos.x, pos.y), velocity)
@@ -176,7 +197,7 @@ class Game:
 
             keys = pygame.key.get_pressed()
             mouse = pygame.mouse.get_pressed()
-            if mouse[0] and not self.shoot_cooldown:
+            if mouse[0] and not self.shoot_cooldown and self.player.alive:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
                 mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
@@ -187,6 +208,11 @@ class Game:
                 self.shoot_cooldown = self.SHOOT_COOLDOWN
 
 
+            event_queue = self.client.event_queue.copy()
+            if event_queue:
+                event = event_queue.pop()
+                self.handle_event(event)
+                self.client.event_queue = event_queue
             # We get them here every frame
             # Might not need to
             # Keep it for no until proven otherwise
@@ -195,7 +221,9 @@ class Game:
                 for tile in self.arena.get_colliders()
             ]
 
-            self.player.handle_input(keys, tile_collisions, dt)
+            if self.player.alive:
+                self.player.handle_input(keys, tile_collisions, dt)
+
             self.client.send_position(
                 self.player.position.x, self.player.position.y)
 
@@ -210,7 +238,7 @@ class Game:
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
-            self.ui.draw(list(self.client.players.values()))
+            self.ui.draw(list(self.client.players.values()), self.client.lifecycle_state)
 
             pygame.transform.scale(self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
 

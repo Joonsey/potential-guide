@@ -1,15 +1,28 @@
+from enum import IntEnum, auto
 import random
 import time
 import socket
 import logging
 import threading
 
-from packet import Packet, PacketType, PayloadFormat
+from packet import LifecycleType, Packet, PacketType, PayloadFormat
 
 BUFF_SIZE = 1024
 
 
 LOGGER = logging.getLogger("Client")
+
+class EventType(IntEnum):
+    FORCE_MOVE = auto()
+    HIT = auto()
+    RESSURECT = auto()
+
+
+class Event:
+    def __init__(self) -> None:
+        self.event_type: EventType
+        self.data: tuple
+
 
 
 class Projectile:
@@ -29,7 +42,7 @@ class Player:
         self.name = ""
         self.score = 0
         self.interpolation_t: float = 0
-        self.hit = False
+        self.alive = True
 
     def __repr__(self) -> str:
         return f"<Player {self.name}, {self.position}, {self.score}>"
@@ -45,6 +58,16 @@ class Client:
         self.projectiles: list[Projectile] = []
         self.id = 0
         self.running = False
+
+        self.event_queue: list[Event] = []
+        self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
+
+    def reset(self) -> None:
+        for player in self.players.values():
+            # Resurrecting all players
+            player.alive = True
+
+        self.projectiles.clear()
 
     @property
     def sequence_number(self):
@@ -93,6 +116,19 @@ class Client:
             player.id = id
             self.players[id] = player
 
+    def handle_lifecycle_change(self, state: LifecycleType, context: int) -> None:
+        self.lifecycle_state = LifecycleType(state)
+
+        if state == LifecycleType.NEW_ROUND:
+            ...
+
+        if state in [LifecycleType.PLAYING]:
+            event = Event()
+            event.event_type = EventType.RESSURECT
+            self.event_queue.append(event)
+
+            self.reset()
+
     def handle_response(self, data: bytes, addr) -> None:
         LOGGER.debug("handling data: %s from %s", data, addr)
         try:
@@ -112,10 +148,25 @@ class Client:
             player_id, = PayloadFormat.ONBOARD.unpack(packet.payload)
             del self.players[player_id]
 
+        if packet.packet_type == PacketType.LIFECYCLE_CHANGE:
+            state, context = PayloadFormat.LIFECYCLE_CHANGE.unpack(packet.payload)
+            self.handle_lifecycle_change(state, context)
+
+        if packet.packet_type == PacketType.FORCE_MOVE:
+            id, x, y = PayloadFormat.COORDINATES.unpack(packet.payload)
+            event = Event()
+            event.event_type = EventType.FORCE_MOVE
+            event.data = (x, y)
+            self.event_queue.append(event)
+
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
             self.projectiles = list(filter(lambda x: x.id != proj_id, self.projectiles))
-            self.players[hit_id].hit = True
+            self.players[hit_id].alive = False
+            event = Event()
+            event.event_type = EventType.HIT
+            event.data = (proj_id, hit_id)
+            self.event_queue.append(event)
 
         if packet.packet_type == PacketType.SHOOT:
             id, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(

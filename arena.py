@@ -12,6 +12,8 @@ class Arena:
         self.width = 0
         self.map = []
         self.tiles: list[Tile] = []
+        self.max_players = 2  # TODO: implement
+        self.spawn_positions: list[tuple[float, float]] = [(300, 200), (600, 400)]
 
         with open(path, 'r') as f:
             for line in f.readlines():

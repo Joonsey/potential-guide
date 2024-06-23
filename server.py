@@ -5,9 +5,11 @@ import logging
 import pygame
 
 from arena import Arena
-from packet import Packet, PacketType, PayloadFormat
+from packet import LifecycleType, Packet, PacketType, PayloadFormat
 
 BUFF_SIZE = 1024
+ROUND_INTERVAL = 5
+WAITING_TIME = ROUND_INTERVAL
 
 
 LOGGER = logging.getLogger("Server")
@@ -26,9 +28,10 @@ class Connection:
     def __init__(self, addr) -> None:
         self.addr = addr
         self.id = 0
-        self.position = (0, 0)
+        self.position: tuple[float, float] = (0, 0)
         self.name = ""
         self.score = 0
+        self.alive = True
 
 
 class Projectile:
@@ -52,6 +55,8 @@ class Server:
         self.projectiles: dict[int, Projectile] = {}
         self._player_index = 0
         self._projectile_index = 0
+        self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
+        self.lifecycle_context = 0
 
         self.arena = Arena("arena", (1080, 720))  #TODO!!: refactor
 
@@ -59,6 +64,13 @@ class Server:
                 pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
                 for tile in self.arena.get_colliders()
             ]
+
+    def reset(self) -> None:
+        for player in self.connections.values():
+            # Resurrecting all players
+            player.alive = True
+
+        self.projectiles.clear()
 
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
@@ -104,6 +116,41 @@ class Server:
             proj.position = (new_pos_x, new_pos_y)
             proj.velocity = (vel_x, vel_y)
 
+    def update_lifecycle(self) -> None:
+        if self.lifecycle_state == LifecycleType.WAITING_ROOM:
+            if len(self.connections) == self.arena.max_players:
+                self.lifecycle_state = LifecycleType.STARTING
+                self.lifecycle_context = time.time() + WAITING_TIME
+
+        elif self.lifecycle_state == LifecycleType.PLAYING:
+            remaining_players = list(filter(lambda x: x.alive, self.connections.values()))
+            if len(remaining_players) == 1:
+                remaining_players[0].score += 1
+                self.lifecycle_state = LifecycleType.NEW_ROUND
+                self.lifecycle_context = time.time() + ROUND_INTERVAL
+
+        elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING] and time.time() >= self.lifecycle_context:
+            self.lifecycle_state = LifecycleType.PLAYING
+
+    def check_lifecycle(self) -> None:
+        old_state = self.lifecycle_state
+        self.update_lifecycle()
+        if old_state != self.lifecycle_state:
+            packet = Packet(PacketType.LIFECYCLE_CHANGE, 0, PayloadFormat.LIFECYCLE_CHANGE.pack(self.lifecycle_state, self.lifecycle_context))
+            self.broadcast(packet)
+            if self.lifecycle_state in [LifecycleType.PLAYING]:
+                self.reset()
+                i = 0
+                for addr, player in self.connections.items():
+                    new_pos = self.arena.spawn_positions[i]
+                    i += 1
+
+                    packet = Packet(PacketType.FORCE_MOVE, 0, PayloadFormat.COORDINATES.pack(player.id, *new_pos))
+
+                    player.position = new_pos
+
+                    self._send_packet(packet, addr)
+
     def check_tank_hit(self) -> None:
         projs_hit = []
 
@@ -116,13 +163,8 @@ class Server:
 
                 player_rect = (player.position[0], player.position[1], 16, 16)
                 if check_collision(proj_rect, player_rect):
-                    sender_list = list(
-                        filter(lambda x: x.id == proj.sender_id, self.connections.values()))
-                    if sender_list:
-                        sender = sender_list[0]
-                        sender.score += 1
-
                     projs_hit.append(proj.id)
+                    player.alive = False
                     self.send_hit(proj.id, player.id)
 
         for proj_id in projs_hit:
@@ -150,6 +192,7 @@ class Server:
 
             self.update_projectiles(self.tile_collisions, time.time() - self.last_iter_time)
             self.check_tank_hit()
+            self.check_lifecycle()
 
             self._wait_for_tick(start_time)
 

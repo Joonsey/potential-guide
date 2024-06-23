@@ -2,6 +2,15 @@ import struct
 import time
 from enum import IntEnum, auto
 
+# TODO: refactor and move out
+class LifecycleType(IntEnum):
+    STARTING = auto()
+    PLAYING = auto()
+    WAITING_ROOM = auto()
+    NEW_ROUND = auto()
+    DONE = auto()
+
+
 class PacketType(IntEnum):
     CONNECT = auto()
     DISCONNECT = auto()
@@ -11,6 +20,8 @@ class PacketType(IntEnum):
     SHOOT = auto()
     UPDATE = auto()
     HIT = auto()
+    LIFECYCLE_CHANGE = auto()
+    FORCE_MOVE = auto()
 
 
 class PayloadFormat:
@@ -22,6 +33,7 @@ class PayloadFormat:
     UPDATE = struct.Struct("IffI")  # combines SCORE and COORDINATES
     SHOOT = struct.Struct("Iffff")
     HIT = struct.Struct("II")
+    LIFECYCLE_CHANGE = struct.Struct("If")  # LifecycleType, context
 
 
 class Packet:
