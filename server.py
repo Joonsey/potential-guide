@@ -58,7 +58,7 @@ class Server:
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
 
-        self.arena = Arena("arena", (1080, 720))  # TODO!!: refactor
+        self.arena = Arena("arena", (600, 420))  # TODO!!: refactor
 
         self.tile_collisions = [
             pygame.Rect(tile.position[0],

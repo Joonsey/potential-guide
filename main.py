@@ -2,15 +2,17 @@ import time
 import pygame
 import threading
 import sys
+import math
 
 from arena import Arena
+from assets import AssetLoader
 from packet import LifecycleType
 from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 
 DISPLAY_WIDTH, DISPLAY_HEIGHT = 1080, 720
-SCREEN_WIDTH, SCREEN_HEIGHT = 1080, 720
+SCREEN_WIDTH, SCREEN_HEIGHT = 600, 420
 FONT_SIZE = 32
 
 
@@ -29,35 +31,51 @@ def lerp(a: float, b: float, f: float):
     return a * (1.0 - f) + (b * f)
 
 
+def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame.Vector2, rotation: int):
+    for i, img in enumerate(images):
+        rotated_img = pygame.transform.rotate(img, rotation)
+        surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2, pos.y - rotated_img.get_height() // 2 - i))
+
+
 class Player:
     SPEED = 100
+    ROTATION_SPEED = 90
 
-    def __init__(self) -> None:
+    def __init__(self, sprites: list[pygame.Surface]) -> None:
         self.position = pygame.Vector2()
+        self.rotation = 0
+        self.barrel_rotation: float = 0
         self.alive = True
+
+        self.sprites = sprites
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
+        rotation_speed = self.ROTATION_SPEED * dt
+
+        rad = math.radians(self.rotation)
+        vel_x, vel_y = math.sin(rad), -math.cos(rad)
         velocity = self.SPEED * dt
-        start_pos_y = self.position.y
-        if keys[pygame.K_w]:
-            self.position.y -= velocity
-        if keys[pygame.K_s]:
-            self.position.y += velocity
 
-        for rect in collision_list:
-            if self.check_collision(rect):
-                self.position.y = start_pos_y
-
-        start_pos_x = self.position.x
         if keys[pygame.K_a]:
-            self.position.x -= velocity
+            self.rotation -= rotation_speed
         if keys[pygame.K_d]:
-            self.position.x += velocity
+            self.rotation += rotation_speed
+
+        start_pos = self.position.copy()
+
+        if keys[pygame.K_w]:
+            self.position.y += vel_y * velocity
+            self.position.x += vel_x * velocity
+
+        if keys[pygame.K_s]:
+            self.position.y -= vel_y * velocity
+            self.position.x -= vel_x * velocity
 
         for rect in collision_list:
             if self.check_collision(rect):
-                self.position.x = start_pos_x
+                self.position = start_pos
+
 
     def check_collision(self, other_rect: pygame.Rect) -> bool:
         rect = pygame.Rect(
@@ -68,10 +86,8 @@ class Player:
         return rect.colliderect(other_rect)
 
     def draw(self, screen: pygame.Surface):
-        # TODO: refactor
-        surf = pygame.Surface((16, 16))
-        surf.fill((0, 255, 0) if self.alive else (80, 80, 80))
-        screen.blit(surf, self.position)
+        # TODO: collisions are weird now because of the rotation of the sprite
+        render_stack(screen, self.sprites, self.position, -self.rotation)
 
 
 class UI:
@@ -112,9 +128,14 @@ class Game:
 
     def __init__(self) -> None:
         self.client = Client()
+        self.asset_loader = AssetLoader()
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
-        self.player = Player()
+
+        #tank_sprites = self.asset_loader.sprite_sheets['tank']
+        car_sprites = self.asset_loader.sprite_sheets['car']
+
+        self.player = Player(car_sprites)
         self.player.position = pygame.Vector2(
             SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.ui = UI(self.screen)
@@ -197,7 +218,7 @@ class Game:
             self.player.position.y = event.data[1]
 
         elif event.event_type == EventType.HIT:
-            proj_id, hit_id = event.data
+            _, hit_id = event.data
 
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
@@ -223,13 +244,18 @@ class Game:
 
             keys = pygame.key.get_pressed()
             mouse = pygame.mouse.get_pressed()
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
+            mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
+            direction_vector = pygame.Vector2(
+                mouse_x, mouse_y) - self.player.position
+            direction_vector = direction_vector.normalize()
+
+            angle = math.atan2(-direction_vector[1], direction_vector[0])
+            degrees = math.degrees(angle)
+            self.player.barrel_rotation = (degrees + 360) % 360
+
             if mouse[0] and not self.shoot_cooldown and self.player.alive:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
-                mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
-                direction_vector = pygame.Vector2(
-                    mouse_x, mouse_y) - self.player.position
-                direction_vector = direction_vector.normalize()
                 self.shoot((direction_vector.x, direction_vector.y))
                 self.shoot_cooldown = self.SHOOT_COOLDOWN
                 HIT_SOUND.play()
