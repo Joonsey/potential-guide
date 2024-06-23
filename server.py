@@ -58,12 +58,13 @@ class Server:
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
 
-        self.arena = Arena("arena", (1080, 720))  #TODO!!: refactor
+        self.arena = Arena("arena", (1080, 720))  # TODO!!: refactor
 
         self.tile_collisions = [
-                pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
-                for tile in self.arena.get_colliders()
-            ]
+            pygame.Rect(tile.position[0],
+                        tile.position[1], tile.width, tile.height)
+            for tile in self.arena.get_colliders()
+        ]
 
     def reset(self) -> None:
         for player in self.connections.values():
@@ -123,7 +124,8 @@ class Server:
                 self.lifecycle_context = time.time() + WAITING_TIME
 
         elif self.lifecycle_state == LifecycleType.PLAYING:
-            remaining_players = list(filter(lambda x: x.alive, self.connections.values()))
+            remaining_players = list(
+                filter(lambda x: x.alive, self.connections.values()))
             if len(remaining_players) == 1:
                 remaining_players[0].score += 1
                 self.lifecycle_state = LifecycleType.NEW_ROUND
@@ -136,7 +138,8 @@ class Server:
         old_state = self.lifecycle_state
         self.update_lifecycle()
         if old_state != self.lifecycle_state:
-            packet = Packet(PacketType.LIFECYCLE_CHANGE, 0, PayloadFormat.LIFECYCLE_CHANGE.pack(self.lifecycle_state, self.lifecycle_context))
+            packet = Packet(PacketType.LIFECYCLE_CHANGE, 0, PayloadFormat.LIFECYCLE_CHANGE.pack(
+                self.lifecycle_state, self.lifecycle_context))
             self.broadcast(packet)
             if self.lifecycle_state in [LifecycleType.PLAYING]:
                 self.reset()
@@ -145,7 +148,8 @@ class Server:
                     new_pos = self.arena.spawn_positions[i]
                     i += 1
 
-                    packet = Packet(PacketType.FORCE_MOVE, 0, PayloadFormat.COORDINATES.pack(player.id, *new_pos))
+                    packet = Packet(
+                        PacketType.FORCE_MOVE, 0, PayloadFormat.COORDINATES.pack(player.id, *new_pos))
 
                     player.position = new_pos
 
@@ -190,7 +194,8 @@ class Server:
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)
 
-            self.update_projectiles(self.tile_collisions, time.time() - self.last_iter_time)
+            self.update_projectiles(
+                self.tile_collisions, time.time() - self.last_iter_time)
             self.check_tank_hit()
             self.check_lifecycle()
 
@@ -240,7 +245,8 @@ class Server:
             self.broadcast(packet)
 
         if packet.packet_type == PacketType.SHOOT:
-            _, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)
+            _, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
+                packet.payload)
 
             new_id = self._projectile_index
             self._projectile_index += 1
@@ -252,7 +258,8 @@ class Server:
             proj.sender_id = self.connections[addr].id
             self.projectiles[new_id] = proj
 
-            packet.payload = PayloadFormat.SHOOT.pack(new_id, x_pos, y_pos, x_vel, y_vel)
+            packet.payload = PayloadFormat.SHOOT.pack(
+                new_id, x_pos, y_pos, x_vel, y_vel)
 
             self.broadcast(packet)
 

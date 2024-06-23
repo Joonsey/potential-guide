@@ -37,7 +37,6 @@ class Player:
             if self.check_collision(rect):
                 self.position.y = start_pos_y
 
-
         start_pos_x = self.position.x
         if keys[pygame.K_a]:
             self.position.x -= velocity
@@ -84,7 +83,6 @@ class UI:
             # Blit texts onto the screen
             self.ui_screen.blit(player_text, rect)
 
-
         text = self.font.render(f"{lifecycle_state.name}", True, (0, 0, 0))
         rect = text.get_rect(topleft=(SCREEN_WIDTH // 2, 10))
         self.ui_screen.blit(text, rect)
@@ -98,12 +96,13 @@ class Game:
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
         self.player = Player()
-        self.player.position = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
+        self.player.position = pygame.Vector2(
+            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.ui = UI(self.screen)
         self.shoot_cooldown = 0
         self.running = False
 
-        #TODO: REFACTOR
+        # TODO: REFACTOR
         self.arena = Arena('arena', (SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def run_local(self) -> None:
@@ -131,9 +130,8 @@ class Game:
         for tile in self.arena.tiles:
             if tile.tile_type == "#":
                 surf = pygame.Surface((tile.width, tile.height))
-                surf.fill((255,255,255))
+                surf.fill((255, 255, 255))
                 self.screen.blit(surf, tile.position)
-
 
     def draw_projectile(self, position: tuple[float, float]) -> None:
         surf = pygame.Surface((8, 8))
@@ -207,7 +205,6 @@ class Game:
                 self.shoot((direction_vector.x, direction_vector.y))
                 self.shoot_cooldown = self.SHOOT_COOLDOWN
 
-
             event_queue = self.client.event_queue.copy()
             if event_queue:
                 event = event_queue.pop()
@@ -217,7 +214,8 @@ class Game:
             # Might not need to
             # Keep it for no until proven otherwise
             tile_collisions = [
-                pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                pygame.Rect(
+                    tile.position[0], tile.position[1], tile.width, tile.height)
                 for tile in self.arena.get_colliders()
             ]
 
@@ -238,9 +236,11 @@ class Game:
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
-            self.ui.draw(list(self.client.players.values()), self.client.lifecycle_state)
+            self.ui.draw(list(self.client.players.values()),
+                         self.client.lifecycle_state)
 
-            pygame.transform.scale(self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
+            pygame.transform.scale(
+                self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
 
             pygame.display.flip()
             pygame.event.pump()  # process event queue

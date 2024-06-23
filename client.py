@@ -12,6 +12,7 @@ BUFF_SIZE = 1024
 
 LOGGER = logging.getLogger("Client")
 
+
 class EventType(IntEnum):
     FORCE_MOVE = auto()
     HIT = auto()
@@ -24,9 +25,9 @@ class Event:
         self.data: tuple
 
 
-
 class Projectile:
     SPEED = 200  # this needs to be synced in server.Projectile.SPEED
+
     def __init__(self) -> None:
         self.id = 0
         self.position: tuple[float, float] = (0, 0)
@@ -149,7 +150,8 @@ class Client:
             del self.players[player_id]
 
         if packet.packet_type == PacketType.LIFECYCLE_CHANGE:
-            state, context = PayloadFormat.LIFECYCLE_CHANGE.unpack(packet.payload)
+            state, context = PayloadFormat.LIFECYCLE_CHANGE.unpack(
+                packet.payload)
             self.handle_lifecycle_change(state, context)
 
         if packet.packet_type == PacketType.FORCE_MOVE:
@@ -161,7 +163,8 @@ class Client:
 
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
-            self.projectiles = list(filter(lambda x: x.id != proj_id, self.projectiles))
+            self.projectiles = list(
+                filter(lambda x: x.id != proj_id, self.projectiles))
             self.players[hit_id].alive = False
             event = Event()
             event.event_type = EventType.HIT

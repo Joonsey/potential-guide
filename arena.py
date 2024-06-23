@@ -1,10 +1,11 @@
 class Tile:
     def __init__(self) -> None:
-        self.tile_type: str = ""  #TODO: refactor
+        self.tile_type: str = ""  # TODO: refactor
         self.position: tuple[float, float] = (0, 0)
         self.height: float
         self.width: float
         self.has_collision = False
+
 
 class Arena:
     def __init__(self, path: str, dimension: tuple[float, float]) -> None:
@@ -17,9 +18,9 @@ class Arena:
         with open(path, 'r') as f:
             for line in f.readlines():
                 self.height += 1
-                self.width = len(line.strip()) if not self.width else self.width
+                self.width = len(
+                    line.strip()) if not self.width else self.width
                 self.map.append(list(line.strip()))
-
 
         width = dimension[0] / self.width
         height = dimension[1] / self.height
@@ -46,6 +47,7 @@ class Arena:
 
     def get_colliders(self) -> list[Tile]:
         return list(filter(lambda x: x.has_collision, self.tiles))
+
 
 if __name__ == "__main__":
     arena = Arena("arena", (1080, 720))
