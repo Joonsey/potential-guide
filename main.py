@@ -6,6 +6,7 @@ from client import Client, Projectile
 from client import Player as ClientPlayer
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+FONT_SIZE = 32
 
 
 def lerp(a: float, b: float, f: float):
@@ -13,7 +14,7 @@ def lerp(a: float, b: float, f: float):
 
 
 class Player:
-    SPEED = 50
+    SPEED = 100
 
     def __init__(self) -> None:
         self.position = pygame.Vector2()
@@ -37,12 +38,34 @@ class Player:
         screen.blit(surf, self.position)
 
 
+class UI:
+    def __init__(self, ui_screen: pygame.Surface) -> None:
+        self.ui_screen = ui_screen
+        self.font_size = FONT_SIZE
+        self.font = pygame.font.Font(None, self.font_size)
+
+
+    def draw(self, players: list[ClientPlayer]) -> None:
+        position_map = [
+            {"topleft": (10, 10)},
+            {"topright": (SCREEN_WIDTH - 10, 10)}
+        ]
+        for i, player in enumerate(players[:2]):
+            player_text = self.font.render(f"Player {i + 1}: {player.score}", True, (255, 255, 255))  # White text
+
+            # Calculate text positions
+            rect = player_text.get_rect(**position_map[i])
+
+            # Blit texts onto the screen
+            self.ui_screen.blit(player_text, rect)
+
 class Game:
     SHOOT_COOLDOWN = .05
     def __init__(self) -> None:
         self.client = Client()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.player = Player()
+        self.ui = UI(self.screen)
         self.shoot_cooldown = 0
 
     def run_local(self) -> None:
@@ -109,8 +132,8 @@ class Game:
 
             self.player.draw(self.screen)
 
-            for player in self.client.players.values():
-                self.draw_player(player)
+            for id, player in self.client.players.items():
+                self.draw_player(player) if id != self.client.id else ...
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, dt)
@@ -118,6 +141,7 @@ class Game:
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
+            self.ui.draw(list(self.client.players.values()))
             pygame.display.flip()
             pygame.event.pump()  # process event queue
 

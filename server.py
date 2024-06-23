@@ -3,8 +3,6 @@ import threading
 import time
 import logging
 
-# TODO: remove
-
 from packet import Packet, PacketType, PayloadFormat
 
 BUFF_SIZE = 1024
@@ -30,14 +28,18 @@ class Connection:
         self.name = ""
         self.score = 0
 
+
 class Projectile:
     SPEED = 200  # this needs to be synced in client.Projectile.SPEED
+
     def __init__(self) -> None:
+        self.id = 0
         self.position: tuple[float, float] = (0, 0)
         self.velocity = (0, 0)
         self.alive = True
         self.sender_id = 0
         self.grace_period = 0.5
+
 
 class Server:
     def __init__(self) -> None:
@@ -47,6 +49,7 @@ class Server:
         self.connections: dict[tuple[str, int], Connection] = {}
         self.projectiles: dict[int, Projectile] = {}
         self._player_index = 0
+        self._projectile_index = 0
 
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
@@ -54,8 +57,13 @@ class Server:
     def _send_packet(self, packet: Packet, address: tuple[str, int]) -> None:
         self._send(packet.serialize(), address)
 
-    def send_hit(self):
-        ...
+    def send_hit(self, proj_id: int, hit_it: int):
+        packet = Packet(PacketType.HIT, 0,
+                        PayloadFormat.HIT.pack(
+                            proj_id,
+                            hit_it
+                        ))
+        self.broadcast(packet)
 
     def update_projectiles(self, delta_time: float) -> None:
         for _, proj in self.projectiles.items():
@@ -71,7 +79,9 @@ class Server:
 
             proj.position = (pos_x, pos_y)
 
-    def check_collisions(self) -> None:
+    def check_tank_hit(self) -> None:
+        projs_hit = []
+
         for proj in list(filter(lambda x: x.alive, self.projectiles.values())):
             proj_rect = (proj.position[0], proj.position[1], 8, 8)
             for player in self.connections.values():
@@ -81,7 +91,17 @@ class Server:
 
                 player_rect = (player.position[0], player.position[1], 16, 16)
                 if check_collision(proj_rect, player_rect):
-                    self.send_hit()
+                    sender_list = list(
+                        filter(lambda x: x.id == proj.sender_id, self.connections.values()))
+                    if sender_list:
+                        sender = sender_list[0]
+                        sender.score += 1
+
+                    projs_hit.append(proj.id)
+                    self.send_hit(proj.id, player.id)
+
+        for proj_id in projs_hit:
+            del self.projectiles[proj_id]
 
     def loop(self) -> None:
         """
@@ -104,7 +124,7 @@ class Server:
             self.broadcast(pack)
 
             self.update_projectiles(time.time() - self.last_iter_time)
-            self.check_collisions()
+            self.check_tank_hit()
 
             self._wait_for_tick(start_time)
 
@@ -125,7 +145,8 @@ class Server:
         self.connections[addr] = Connection(addr)
         self.connections[addr].name = name
         self.connections[addr].id = self._player_index
-        packet = Packet(PacketType.ONBOARD, 1, PayloadFormat.ONBOARD.pack(self._player_index))
+        packet = Packet(PacketType.ONBOARD, 1,
+                        PayloadFormat.ONBOARD.pack(self._player_index))
         self._send_packet(packet, addr)
 
     def handle_request(self, data: bytes, addr) -> None:
@@ -145,12 +166,19 @@ class Server:
             self.connections[addr].position = position
 
         if packet.packet_type == PacketType.SHOOT:
-            x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)
+            _, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)
+
+            new_id = self._projectile_index
+            self._projectile_index += 1
+
             proj = Projectile()
+            proj.id = new_id
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
             proj.sender_id = self.connections[addr].id
-            self.projectiles[len(self.projectiles)] = proj
+            self.projectiles[new_id] = proj
+
+            packet.payload = PayloadFormat.SHOOT.pack(new_id, x_pos, y_pos, x_vel, y_vel)
 
             self.broadcast(packet)
 

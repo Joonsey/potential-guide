@@ -15,6 +15,7 @@ LOGGER = logging.getLogger("Client")
 class Projectile:
     SPEED = 200  # this needs to be synced in server.Projectile.SPEED
     def __init__(self) -> None:
+        self.id = 0
         self.position: tuple[float, float] = (0, 0)
         self.velocity: tuple[float, float] = (0, 0)
 
@@ -27,6 +28,7 @@ class Player:
         self.name = ""
         self.score = 0
         self.interpolation_t: float = 0
+        self.hit = False
 
     def __repr__(self) -> str:
         return f"<Player {self.name}, {self.position}, {self.score}>"
@@ -69,8 +71,6 @@ class Client:
         for i in range(player_count):
             data = packet.payload[i * size: size + size * i]
             id, x, y, score = PayloadFormat.UPDATE.unpack(data)
-            if id == self.id:
-                continue
 
             if id in self.players.keys():
                 player = self.players[id]
@@ -99,12 +99,19 @@ class Client:
             id, = PayloadFormat.ONBOARD.unpack(packet.payload)
             self.id = id
 
+        if packet.packet_type == PacketType.HIT:
+            proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
+            self.projectiles = list(filter(lambda x: x.id != proj_id, self.projectiles))
+            self.players[hit_id].hit = True
+
+
         if packet.packet_type == PacketType.SHOOT:
-            x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
+            id, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
                 packet.payload)
             proj = Projectile()
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
+            proj.id = id
             self.projectiles.append(proj)
 
     def listen(self) -> None:
@@ -126,6 +133,7 @@ class Client:
     def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float]) -> None:
         packet = Packet(PacketType.SHOOT, self.sequence_number,
                         PayloadFormat.SHOOT.pack(
+                            0,  # un-initialized
                             position[0],
                             position[1],
                             velocity[0],
