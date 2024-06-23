@@ -32,6 +32,7 @@ class Projectile:
         self.id = 0
         self.position: tuple[float, float] = (0, 0)
         self.velocity: tuple[float, float] = (0, 0)
+        self.remaining_bounces = 2
 
 
 class Player:

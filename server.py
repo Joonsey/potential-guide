@@ -44,6 +44,7 @@ class Projectile:
         self.alive = True
         self.sender_id = 0
         self.grace_period = 0.5
+        self.remaining_bounces = 2
 
 
 class Server:
@@ -87,12 +88,15 @@ class Server:
         self.broadcast(packet)
 
     def update_projectiles(self, collision_list: list[pygame.Rect], dt: float) -> None:
-        for _, proj in self.projectiles.items():
+        temp_proj = self.projectiles.copy()
+        keys_to_remove = []
+        for proj_id, proj in temp_proj.items():
             proj.grace_period = max(0, proj.grace_period - dt)
             if not proj.alive:
                 continue
             x, y = proj.position
             vel_x, vel_y = proj.velocity
+            colided = False
 
             # Calculate new potential position
             new_pos_x = x + vel_x * dt * Projectile.SPEED
@@ -100,21 +104,35 @@ class Server:
 
             # Check for vertical collisions
             if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
+                colided = True
+
                 # Reflect the velocity on the y-axis
                 vel_y = -vel_y
                 # Set new position with reflected velocity
                 new_pos_y = y + vel_y * dt * Projectile.SPEED
 
+
             # Check for horizontal collisions
             if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
+                colided = True
                 # Reflect the velocity on the x-axis
                 vel_x = -vel_x
                 # Set new position with reflected velocity
                 new_pos_x = x + vel_x * dt * Projectile.SPEED
 
             # Update the projectile's position and velocity
+            if colided:
+                if proj.remaining_bounces == 0:
+                    keys_to_remove.append(proj_id)
+                    continue
+                proj.remaining_bounces -= 1
+
             proj.position = (new_pos_x, new_pos_y)
             proj.velocity = (vel_x, vel_y)
+
+        for key in keys_to_remove:
+            del temp_proj[key]
+        self.projectiles = temp_proj
 
     def update_lifecycle(self) -> None:
         if self.lifecycle_state == LifecycleType.WAITING_ROOM:
@@ -204,7 +222,7 @@ class Server:
         end_time = time.time()
         target = 1 / tick_rate
         delta_time = end_time - start_time
-        time.sleep(target - delta_time)
+        time.sleep(max(target - delta_time, 0))
         return end_time
 
     def onboard_player(self, packet, addr) -> None:

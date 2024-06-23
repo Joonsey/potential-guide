@@ -152,9 +152,11 @@ class Game:
         # Calculate new potential position
         new_pos_x = x + vel_x * dt * Projectile.SPEED
         new_pos_y = y + vel_y * dt * Projectile.SPEED
+        colided = False
 
         # Check for vertical collisions
         if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
+            colided = True
             # Reflect the velocity on the y-axis
             vel_y = -vel_y
             # Set new position with reflected velocity
@@ -162,12 +164,18 @@ class Game:
 
         # Check for horizontal collisions
         if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
+            colided = True
             # Reflect the velocity on the x-axis
             vel_x = -vel_x
             # Set new position with reflected velocity
             new_pos_x = x + vel_x * dt * Projectile.SPEED
 
-        # Update the projectile's position and velocity
+        if colided:
+            if projectile.remaining_bounces == 0:
+                self.client.projectiles.remove(projectile)
+                return
+            projectile.remaining_bounces -= 1
+
         projectile.position = (new_pos_x, new_pos_y)
         projectile.velocity = (vel_x, vel_y)
 
