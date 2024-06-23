@@ -62,6 +62,7 @@ class Client:
 
         self.event_queue: list[Event] = []
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
+        self.lifecycle_context = 0
 
     def reset(self) -> None:
         for player in self.players.values():
@@ -119,6 +120,7 @@ class Client:
 
     def handle_lifecycle_change(self, state: LifecycleType, context: int) -> None:
         self.lifecycle_state = LifecycleType(state)
+        self.lifecycle_context = context
 
         if state == LifecycleType.NEW_ROUND:
             ...

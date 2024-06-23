@@ -1,3 +1,4 @@
+import time
 import pygame
 import threading
 import sys
@@ -67,8 +68,9 @@ class UI:
         self.ui_screen = ui_screen
         self.font_size = FONT_SIZE
         self.font = pygame.font.Font(None, self.font_size)
+        self.new_room_font = pygame.font.Font(None, 72)
 
-    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType) -> None:
+    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int) -> None:
         position_map = [
             {"topleft": (10, 10)},
             {"topright": (SCREEN_WIDTH - 10, 10)}
@@ -83,9 +85,14 @@ class UI:
             # Blit texts onto the screen
             self.ui_screen.blit(player_text, rect)
 
-        text = self.font.render(f"{lifecycle_state.name}", True, (0, 0, 0))
-        rect = text.get_rect(topleft=(SCREEN_WIDTH // 2, 10))
-        self.ui_screen.blit(text, rect)
+        #  TODO: this is not really 'UI' should be moved
+        if lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
+            now = time.time()
+            text = self.new_room_font.render(f"{int(context - now)}", True, (0, 0, 0))
+            rect = text.get_rect(topleft=(
+                SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - text.get_height() // 2))
+
+            self.ui_screen.blit(text, rect)
 
 
 class Game:
@@ -237,7 +244,9 @@ class Game:
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
             self.ui.draw(list(self.client.players.values()),
-                         self.client.lifecycle_state)
+                         self.client.lifecycle_state,
+                         self.client.lifecycle_context
+                         )
 
             pygame.transform.scale(
                 self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)

@@ -33,7 +33,7 @@ class PayloadFormat:
     UPDATE = struct.Struct("IffI")  # combines SCORE and COORDINATES
     SHOOT = struct.Struct("Iffff")
     HIT = struct.Struct("II")
-    LIFECYCLE_CHANGE = struct.Struct("If")  # LifecycleType, context
+    LIFECYCLE_CHANGE = struct.Struct("Id")  # LifecycleType, context
 
 
 class Packet:
