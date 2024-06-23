@@ -50,7 +50,6 @@ class Server:
     def __init__(self) -> None:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.running = False
-        self.tick_rate = 20
         self.connections: dict[tuple[str, int], Connection] = {}
         self.projectiles: dict[int, Projectile] = {}
         self._player_index = 0
@@ -179,7 +178,7 @@ class Server:
         Entry point for main update loop
         """
         LOGGER.info("main loop up!")
-        self.last_iter_time = 0
+        last_iter_time = 0
         while self.running:
             start_time = time.time()
 
@@ -194,22 +193,19 @@ class Server:
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)
 
-            self.update_projectiles(
-                self.tile_collisions, time.time() - self.last_iter_time)
-            self.check_tank_hit()
             self.check_lifecycle()
 
-            self._wait_for_tick(start_time)
+            last_iter_time = self._wait_for_tick(start_time, 20)
 
-    def _wait_for_tick(self, start_time) -> None:
+    def _wait_for_tick(self, start_time: float, tick_rate: int) -> float:
         """
-        Waiting for the next tick to be due, targetting self.tick_rate
+        Waiting for the next tick to be due
         """
         end_time = time.time()
-        self.last_iter_time = end_time
-        target = 1 / self.tick_rate
+        target = 1 / tick_rate
         delta_time = end_time - start_time
         time.sleep(target - delta_time)
+        return end_time
 
     def onboard_player(self, packet, addr) -> None:
         self._player_index += 1
@@ -267,6 +263,19 @@ class Server:
         for addr in self.connections.keys():
             self._send_packet(packet, addr)
 
+    def simulation_loop(self):
+        """
+        Entry point for game simulation loop
+        """
+        LOGGER.info("simulation loop up!")
+        last_iter_time = 0
+        while self.running:
+            start_time = time.time()
+            self.update_projectiles(self.tile_collisions, time.time() - last_iter_time)
+            self.check_tank_hit()
+
+            last_iter_time = self._wait_for_tick(start_time, 60)
+
     def start(self, address: str = "127.0.0.1", port: int = 5001) -> None:
         """
         Start the UDP server
@@ -275,6 +284,7 @@ class Server:
         self.running = True
         self.sock.bind((address, port))
         threading.Thread(target=self.loop, daemon=True).start()
+        threading.Thread(target=self.simulation_loop, daemon=True).start()
 
         while self.running:
             data, addr = self.sock.recvfrom(BUFF_SIZE)
