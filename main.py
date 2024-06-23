@@ -14,6 +14,17 @@ SCREEN_WIDTH, SCREEN_HEIGHT = 1080, 720
 FONT_SIZE = 32
 
 
+pygame.mixer.init()
+
+VOLUME = .15
+
+HIT_SOUND = pygame.mixer.Sound('assets/hit_1.wav')
+EXPLOSION_SOUND = pygame.mixer.Sound('assets/explosion.wav')
+
+HIT_SOUND.set_volume(VOLUME)
+EXPLOSION_SOUND.set_volume(VOLUME)
+
+
 def lerp(a: float, b: float, f: float):
     return a * (1.0 - f) + (b * f)
 
@@ -88,7 +99,8 @@ class UI:
         #  TODO: this is not really 'UI' should be moved
         if lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
             now = time.time()
-            text = self.new_room_font.render(f"{int(context - now)}", True, (0, 0, 0))
+            countdown = int(context - now)
+            text = self.new_room_font.render(f"{countdown}", True, (0, 0, 0))
             rect = text.get_rect(topleft=(
                 SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - text.get_height() // 2))
 
@@ -188,6 +200,7 @@ class Game:
             proj_id, hit_id = event.data
 
             if hit_id == self.client.id:
+                EXPLOSION_SOUND.play()
                 self.player.alive = False
 
         elif event.event_type == EventType.RESSURECT:
@@ -219,6 +232,7 @@ class Game:
                 direction_vector = direction_vector.normalize()
                 self.shoot((direction_vector.x, direction_vector.y))
                 self.shoot_cooldown = self.SHOOT_COOLDOWN
+                HIT_SOUND.play()
 
             event_queue = self.client.event_queue.copy()
             if event_queue:
