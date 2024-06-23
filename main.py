@@ -189,9 +189,9 @@ class Game:
         pos = self.player.position
         self.client.send_shoot((pos.x, pos.y), velocity)
 
-    def run(self) -> None:
+    def run(self, address: str = "127.0.0.1") -> None:
         self.clock = pygame.Clock()
-        self.client.connect()
+        self.client.connect(address)
         self.client.start()
         self.running = True
 
@@ -267,5 +267,11 @@ if __name__ == "__main__":
 
     if '--local' in sys.argv:
         game.run_local()
+    elif '--join' in sys.argv:
+        idx = sys.argv.index('--join')
+        if len(sys.argv) < idx + 1:
+            raise ValueError("missing argument to option --join")
+
+        game.run(sys.argv[idx + 1])
     else:
         game.run()

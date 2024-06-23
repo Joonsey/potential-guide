@@ -53,7 +53,7 @@ class Client:
     def __init__(self) -> None:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.address: str = "127.0.0.1"
-        self.port: int = 5001
+        self.port: int = 5555
         self._sequence_number = 0
         self.players: dict[int, Player] = {}
         self.projectiles: list[Projectile] = []
@@ -86,7 +86,8 @@ class Client:
     def _send_packet(self, packet: Packet) -> None:
         self._send(packet.serialize())
 
-    def connect(self) -> None:
+    def connect(self, address: str) -> None:
+        self.address = address
         packet = Packet(PacketType.CONNECT,
                         self.sequence_number, b"connecting!")
         self._send_packet(packet)
