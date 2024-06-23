@@ -2,7 +2,9 @@ import socket
 import threading
 import time
 import logging
+import pygame
 
+from arena import Arena
 from packet import Packet, PacketType, PayloadFormat
 
 BUFF_SIZE = 1024
@@ -51,6 +53,13 @@ class Server:
         self._player_index = 0
         self._projectile_index = 0
 
+        self.arena = Arena("arena", (1080, 720))  #TODO!!: refactor
+
+        self.tile_collisions = [
+                pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                for tile in self.arena.get_colliders()
+            ]
+
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
 
@@ -65,19 +74,35 @@ class Server:
                         ))
         self.broadcast(packet)
 
-    def update_projectiles(self, delta_time: float) -> None:
+    def update_projectiles(self, collision_list: list[pygame.Rect], dt: float) -> None:
         for _, proj in self.projectiles.items():
-            proj.grace_period = max(0, proj.grace_period - delta_time)
+            proj.grace_period = max(0, proj.grace_period - dt)
             if not proj.alive:
                 continue
-
             x, y = proj.position
             vel_x, vel_y = proj.velocity
 
-            pos_x = x + vel_x * delta_time * proj.SPEED
-            pos_y = y + vel_y * delta_time * proj.SPEED
+            # Calculate new potential position
+            new_pos_x = x + vel_x * dt * Projectile.SPEED
+            new_pos_y = y + vel_y * dt * Projectile.SPEED
 
-            proj.position = (pos_x, pos_y)
+            # Check for vertical collisions
+            if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
+                # Reflect the velocity on the y-axis
+                vel_y = -vel_y
+                # Set new position with reflected velocity
+                new_pos_y = y + vel_y * dt * Projectile.SPEED
+
+            # Check for horizontal collisions
+            if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
+                # Reflect the velocity on the x-axis
+                vel_x = -vel_x
+                # Set new position with reflected velocity
+                new_pos_x = x + vel_x * dt * Projectile.SPEED
+
+            # Update the projectile's position and velocity
+            proj.position = (new_pos_x, new_pos_y)
+            proj.velocity = (vel_x, vel_y)
 
     def check_tank_hit(self) -> None:
         projs_hit = []
@@ -123,7 +148,7 @@ class Server:
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)
 
-            self.update_projectiles(time.time() - self.last_iter_time)
+            self.update_projectiles(self.tile_collisions, time.time() - self.last_iter_time)
             self.check_tank_hit()
 
             self._wait_for_tick(start_time)
@@ -164,6 +189,12 @@ class Server:
             _, x, y = PayloadFormat.COORDINATES.unpack(packet.payload)
             position = (x, y)
             self.connections[addr].position = position
+
+        if packet.packet_type == PacketType.DISCONNECT:
+            player_id = self.connections[addr].id
+            del self.connections[addr]
+            packet.payload = PayloadFormat.DISCONNECT.pack(player_id)
+            self.broadcast(packet)
 
         if packet.packet_type == PacketType.SHOOT:
             _, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(packet.payload)

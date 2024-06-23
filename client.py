@@ -25,6 +25,7 @@ class Player:
         # used for interpolation
         self.old_position: tuple[float, float] | None = None
         self.position: tuple[float, float] = (0, 0)
+        self.id = 0
         self.name = ""
         self.score = 0
         self.interpolation_t: float = 0
@@ -43,6 +44,7 @@ class Client:
         self.players: dict[int, Player] = {}
         self.projectiles: list[Projectile] = []
         self.id = 0
+        self.running = False
 
     @property
     def sequence_number(self):
@@ -64,6 +66,12 @@ class Client:
                         self.sequence_number, b"connecting!")
         self._send_packet(packet)
 
+    def disconnect(self) -> None:
+        packet = Packet(PacketType.DISCONNECT,
+                        self.sequence_number, b"disconnecting!")
+        self._send_packet(packet)
+        self.running = False
+
     def handle_update_packet(self, packet: Packet) -> None:
         size = PayloadFormat.UPDATE.size
         player_count = len(packet.payload) // size
@@ -82,6 +90,7 @@ class Client:
                 player.position = (x, y)
 
             player.score = score
+            player.id = id
             self.players[id] = player
 
     def handle_response(self, data: bytes, addr) -> None:
@@ -99,11 +108,14 @@ class Client:
             id, = PayloadFormat.ONBOARD.unpack(packet.payload)
             self.id = id
 
+        if packet.packet_type == PacketType.DISCONNECT:
+            player_id, = PayloadFormat.ONBOARD.unpack(packet.payload)
+            del self.players[player_id]
+
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
             self.projectiles = list(filter(lambda x: x.id != proj_id, self.projectiles))
             self.players[hit_id].hit = True
-
 
         if packet.packet_type == PacketType.SHOOT:
             id, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
@@ -115,15 +127,19 @@ class Client:
             self.projectiles.append(proj)
 
     def listen(self) -> None:
-        while True:
+        while self.running:
             data, addr = self.sock.recvfrom(BUFF_SIZE)
             threading.Thread(target=self.handle_response,
                              args=(data, addr)).start()
 
     def start(self) -> None:
+        self.running = True
         threading.Thread(target=self.listen, daemon=True).start()
 
     def send_position(self, x: float, y: float) -> None:
+        if not self.running:
+            return
+
         packet = Packet(PacketType.COORDINATES, self.sequence_number,
                         PayloadFormat.COORDINATES.pack(
                             self.id, x, y

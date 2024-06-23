@@ -4,6 +4,7 @@ from enum import IntEnum, auto
 
 class PacketType(IntEnum):
     CONNECT = auto()
+    DISCONNECT = auto()
     ONBOARD = auto()
     SCORE = auto()
     COORDINATES = auto()
@@ -14,6 +15,7 @@ class PacketType(IntEnum):
 
 class PayloadFormat:
     CONNECT = struct.Struct("32s")
+    DISCONNECT  = struct.Struct("I")
     ONBOARD = struct.Struct("I")
     SCORE = struct.Struct("II")
     COORDINATES = struct.Struct("Iff")

@@ -1,11 +1,14 @@
 import pygame
 import threading
+import sys
 
+from arena import Arena
 from server import Server
 from client import Client, Projectile
 from client import Player as ClientPlayer
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+DISPLAY_WIDTH, DISPLAY_HEIGHT = 1080, 720
+SCREEN_WIDTH, SCREEN_HEIGHT = 1080, 720
 FONT_SIZE = 32
 
 
@@ -19,17 +22,37 @@ class Player:
     def __init__(self) -> None:
         self.position = pygame.Vector2()
 
-    def handle_input(self, keys, dt: float) -> None:
+    def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
         velocity = self.SPEED * dt
+        start_pos_y = self.position.y
         if keys[pygame.K_w]:
             self.position.y -= velocity
         if keys[pygame.K_s]:
             self.position.y += velocity
+
+        for rect in collision_list:
+            if self.check_collision(rect):
+                self.position.y = start_pos_y
+
+
+        start_pos_x = self.position.x
         if keys[pygame.K_a]:
             self.position.x -= velocity
         if keys[pygame.K_d]:
             self.position.x += velocity
+
+        for rect in collision_list:
+            if self.check_collision(rect):
+                self.position.x = start_pos_x
+
+    def check_collision(self, other_rect: pygame.Rect) -> bool:
+        rect = pygame.Rect(
+            self.position.x, self.position.y,
+            16, 16
+        )
+
+        return rect.colliderect(other_rect)
 
     def draw(self, screen: pygame.Surface):
         # TODO: refactor
@@ -44,14 +67,14 @@ class UI:
         self.font_size = FONT_SIZE
         self.font = pygame.font.Font(None, self.font_size)
 
-
     def draw(self, players: list[ClientPlayer]) -> None:
         position_map = [
             {"topleft": (10, 10)},
             {"topright": (SCREEN_WIDTH - 10, 10)}
         ]
         for i, player in enumerate(players[:2]):
-            player_text = self.font.render(f"Player {i + 1}: {player.score}", True, (255, 255, 255))  # White text
+            player_text = self.font.render(
+                f"Player {player.id}: {player.score}", True, (0, 0, 0))  # White text
 
             # Calculate text positions
             rect = player_text.get_rect(**position_map[i])
@@ -59,14 +82,22 @@ class UI:
             # Blit texts onto the screen
             self.ui_screen.blit(player_text, rect)
 
+
 class Game:
     SHOOT_COOLDOWN = .05
+
     def __init__(self) -> None:
         self.client = Client()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
         self.player = Player()
+        self.player.position = pygame.Vector2(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.ui = UI(self.screen)
         self.shoot_cooldown = 0
+        self.running = False
+
+        #TODO: REFACTOR
+        self.arena = Arena('arena', (SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def run_local(self) -> None:
         s = Server()
@@ -89,19 +120,44 @@ class Game:
         surf.fill((255, 0, 0))
         self.screen.blit(surf, position)
 
+    def draw_arena(self) -> None:
+        for tile in self.arena.tiles:
+            if tile.tile_type == "#":
+                surf = pygame.Surface((tile.width, tile.height))
+                surf.fill((255,255,255))
+                self.screen.blit(surf, tile.position)
+
+
     def draw_projectile(self, position: tuple[float, float]) -> None:
         surf = pygame.Surface((8, 8))
         surf.fill((255, 128, 0))
         self.screen.blit(surf, position)
 
-    def update_projectile(self, projectile: Projectile, dt: float) -> None:
+    def update_projectile(self, projectile: Projectile, collision_list: list[pygame.Rect], dt: float) -> None:
         x, y = projectile.position
         vel_x, vel_y = projectile.velocity
 
-        pos_x = x + vel_x * dt * Projectile.SPEED
-        pos_y = y + vel_y * dt * Projectile.SPEED
+        # Calculate new potential position
+        new_pos_x = x + vel_x * dt * Projectile.SPEED
+        new_pos_y = y + vel_y * dt * Projectile.SPEED
 
-        projectile.position = (pos_x, pos_y)
+        # Check for vertical collisions
+        if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
+            # Reflect the velocity on the y-axis
+            vel_y = -vel_y
+            # Set new position with reflected velocity
+            new_pos_y = y + vel_y * dt * Projectile.SPEED
+
+        # Check for horizontal collisions
+        if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
+            # Reflect the velocity on the x-axis
+            vel_x = -vel_x
+            # Set new position with reflected velocity
+            new_pos_x = x + vel_x * dt * Projectile.SPEED
+
+        # Update the projectile's position and velocity
+        projectile.position = (new_pos_x, new_pos_y)
+        projectile.velocity = (vel_x, vel_y)
 
     def shoot(self, velocity: tuple[float, float]) -> None:
         pos = self.player.position
@@ -111,22 +167,35 @@ class Game:
         self.clock = pygame.Clock()
         self.client.connect()
         self.client.start()
+        self.running = True
 
-        while True:
+        while self.running:
             dt = self.clock.tick(120) / 1000
             self.screen.fill((128, 128, 128))
+            self.draw_arena()
 
             keys = pygame.key.get_pressed()
             mouse = pygame.mouse.get_pressed()
             if mouse[0] and not self.shoot_cooldown:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
+                mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
+                mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
                 direction_vector = pygame.Vector2(
                     mouse_x, mouse_y) - self.player.position
                 direction_vector = direction_vector.normalize()
                 self.shoot((direction_vector.x, direction_vector.y))
                 self.shoot_cooldown = self.SHOOT_COOLDOWN
 
-            self.player.handle_input(keys, dt)
+
+            # We get them here every frame
+            # Might not need to
+            # Keep it for no until proven otherwise
+            tile_collisions = [
+                pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                for tile in self.arena.get_colliders()
+            ]
+
+            self.player.handle_input(keys, tile_collisions, dt)
             self.client.send_position(
                 self.player.position.x, self.player.position.y)
 
@@ -136,18 +205,26 @@ class Game:
                 self.draw_player(player) if id != self.client.id else ...
 
             for projectile in self.client.projectiles:
-                self.update_projectile(projectile, dt)
+                self.update_projectile(projectile, tile_collisions, dt)
                 self.draw_projectile(projectile.position)
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
             self.ui.draw(list(self.client.players.values()))
+
+            pygame.transform.scale(self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
+
             pygame.display.flip()
             pygame.event.pump()  # process event queue
 
+            if keys[pygame.K_q]:
+                self.running = False
+
+        self.client.disconnect()
+        sys.exit()
+
 
 if __name__ == "__main__":
-    import sys
     pygame.init()
     game = Game()
 
