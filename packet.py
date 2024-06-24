@@ -26,10 +26,11 @@ class Projectile:
     def __init__(self, projectile_type: ProjectileType) -> None:
         self.id = 0
         self.position: tuple[float, float] = (0, 0)
-        self.velocity: tuple[float, float] = (0, 0)
+        self._velocity: tuple[float, float] = (0, 0)
         self.sender_id = 0
         self.grace_period = 0.1
         self.projectile_type = projectile_type
+        self.rotation = 0
 
         match projectile_type:
             case ProjectileType.LASER:
@@ -40,12 +41,16 @@ class Projectile:
                 self.remaining_bounces = 2
 
     @property
-    def rotation(self) -> float:
-        # TODO refactor
-        x_vel, y_vel = self.velocity
+    def velocity(self) -> tuple[float, float]:
+        return self._velocity
+
+    @velocity.setter
+    def velocity(self, vel: tuple[float, float]):
+        self._velocity = vel
+        x_vel, y_vel = vel
         angle = math.atan2(-y_vel, x_vel)
         degrees = math.degrees(angle)
-        return (degrees + 360) % 360
+        self.rotation = (degrees + 360) % 360
 
 class PacketType(IntEnum):
     CONNECT = auto()
