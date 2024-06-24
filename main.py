@@ -10,7 +10,7 @@ from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from settings import (
-    DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, lerp, outline, render_stack
 
@@ -238,14 +238,14 @@ class Game:
 
         for i, tile in enumerate(self.arena.tiles):
             if tile.tile_type == "#":
-                color = (255, 255, 255)
+                color = ARENA_WALL_COLOR
 
                 surf = pygame.Surface((tile.width, tile.height))
                 if (i < len(self.arena.tiles) - self.arena.width):
                     if (self.arena.tiles[i + self.arena.width].tile_type == "#"):
                         ...
                     else:
-                        color = (200, 200, 200)
+                        color = ARENA_WALL_COLOR_SHADE
                 surf.fill(color)
                 arena_surf.blit(surf, tile.position)
 
