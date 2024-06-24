@@ -244,13 +244,18 @@ class Game:
                 color = ARENA_WALL_COLOR
 
                 surf = pygame.Surface((tile.width, tile.height))
+                surf.fill(color)
+                arena_surf.blit(surf, tile.position)
+
                 if (i < len(self.arena.tiles) - self.arena.width):
                     if (self.arena.tiles[i + self.arena.width].tile_type == "#"):
                         ...
                     else:
-                        color = ARENA_WALL_COLOR_SHADE
-                surf.fill(color)
-                arena_surf.blit(surf, tile.position)
+                        shade_surf = pygame.Surface((tile.width, tile.height // 2))
+                        shade_surf.fill(ARENA_WALL_COLOR_SHADE)
+                        shade_position = tile.position[0], tile.position[1] + tile.height
+                        arena_surf.blit(shade_surf, shade_position)
+
 
         outline(arena_surf, self.screen, (0, 0), 2)
 
