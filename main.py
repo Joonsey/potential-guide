@@ -177,7 +177,7 @@ class Game:
 
     def run_local(self) -> None:
         s = Server()
-        threading.Thread(target=s.start, daemon=True)
+        threading.Thread(target=s.start, daemon=True).start()
 
         self.run()
 
