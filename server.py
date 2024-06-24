@@ -5,7 +5,7 @@ import logging
 import pygame
 
 from arena import Arena
-from packet import LifecycleType, Packet, PacketType, PayloadFormat
+from packet import LifecycleType, Packet, PacketType, PayloadFormat, Projectile
 from settings import (
     BUFF_SIZE,
     ROUND_INTERVAL,
@@ -38,19 +38,6 @@ class Connection:
         self.name = ""
         self.score = 0
         self.alive = True
-
-
-class Projectile:
-    SPEED = 200  # this needs to be synced in client.Projectile.SPEED
-
-    def __init__(self) -> None:
-        self.id = 0
-        self.position: tuple[float, float] = (0, 0)
-        self.velocity = (0, 0)
-        self.alive = True
-        self.sender_id = 0
-        self.grace_period = 0.5
-        self.remaining_bounces = 2
 
 
 class Server:
@@ -98,15 +85,13 @@ class Server:
         keys_to_remove = []
         for proj_id, proj in temp_proj.items():
             proj.grace_period = max(0, proj.grace_period - dt)
-            if not proj.alive:
-                continue
             x, y = proj.position
             vel_x, vel_y = proj.velocity
             colided = False
 
             # Calculate new potential position
-            new_pos_x = x + vel_x * dt * Projectile.SPEED
-            new_pos_y = y + vel_y * dt * Projectile.SPEED
+            new_pos_x = x + vel_x * dt * proj.speed
+            new_pos_y = y + vel_y * dt * proj.speed
 
             # Check for vertical collisions
             if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
@@ -184,7 +169,7 @@ class Server:
     def check_tank_hit(self) -> None:
         projs_hit = []
 
-        for proj in list(filter(lambda x: x.alive, self.projectiles.values())):
+        for proj in self.projectiles.values():
             proj_rect = (proj.position[0], proj.position[1], 8, 8)
             for player in self.connections.values():
                 if player.id == proj.sender_id and proj.grace_period:
@@ -272,13 +257,13 @@ class Server:
             self.broadcast(packet)
 
         if packet.packet_type == PacketType.SHOOT:
-            _, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
+            _, x_pos, y_pos, x_vel, y_vel, projectile_type = PayloadFormat.SHOOT.unpack(
                 packet.payload)
 
             new_id = self._projectile_index
             self._projectile_index += 1
 
-            proj = Projectile()
+            proj = Projectile(projectile_type)
             proj.id = new_id
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
@@ -286,7 +271,7 @@ class Server:
             self.projectiles[new_id] = proj
 
             packet.payload = PayloadFormat.SHOOT.pack(
-                new_id, x_pos, y_pos, x_vel, y_vel)
+                new_id, x_pos, y_pos, x_vel, y_vel, projectile_type)
 
             self.broadcast(packet)
 

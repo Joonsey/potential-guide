@@ -6,7 +6,7 @@ import math
 
 from arena import Arena
 from assets import AssetLoader
-from packet import LifecycleType
+from packet import LifecycleType, ProjectileType
 from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
@@ -248,10 +248,19 @@ class Game:
 
         outline(arena_surf, self.screen, (0, 0), 2)
 
-    def draw_projectile(self, position: tuple[float, float], rotation: float) -> None:
+    def draw_projectile(self, position: tuple[float, float], rotation: float, projectile_type: ProjectileType) -> None:
+
+        match projectile_type:
+            case ProjectileType.BALL:
+                surf = self.asset_loader.sprite_sheets['bullet-ball']
+            case ProjectileType.LASER:
+                surf = self.asset_loader.sprite_sheets['bullet-lazer']
+            case _:
+                surf = self.asset_loader.sprite_sheets['bullet']
+
         render_stack(
             self.screen,
-            self.asset_loader.sprite_sheets['bullet-lazer'],
+            surf,
             pygame.Vector2(position),
             int(rotation)
         )
@@ -261,8 +270,8 @@ class Game:
         vel_x, vel_y = projectile.velocity
 
         # Calculate new potential position
-        new_pos_x = x + vel_x * dt * Projectile.SPEED
-        new_pos_y = y + vel_y * dt * Projectile.SPEED
+        new_pos_x = x + vel_x * dt * projectile.speed
+        new_pos_y = y + vel_y * dt * projectile.speed
         colided = False
 
         # Check for vertical collisions
@@ -307,9 +316,9 @@ class Game:
         elif event.event_type == EventType.RESSURECT:
             self.player.alive = True
 
-    def shoot(self, velocity: tuple[float, float]) -> None:
+    def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType) -> None:
         pos = self.player.position
-        self.client.send_shoot((pos.x, pos.y), velocity)
+        self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
 
     def incremenet_frame_count(self) -> None:
         self.frame_count += 1
@@ -363,7 +372,12 @@ class Game:
                 self.player.barrel_rotation = (degrees + 360) % 360
 
                 if mouse[0] and not self.shoot_cooldown:
-                    self.shoot((direction_vector.x, direction_vector.y))
+                    self.shoot((direction_vector.x, direction_vector.y), ProjectileType.LASER)
+                    self.shoot_cooldown = self.SHOOT_COOLDOWN
+                    HIT_SOUND.play()
+
+                if mouse[2] and not self.shoot_cooldown:
+                    self.shoot((direction_vector.x, direction_vector.y), ProjectileType.BULLET)
                     self.shoot_cooldown = self.SHOOT_COOLDOWN
                     HIT_SOUND.play()
 
@@ -377,7 +391,7 @@ class Game:
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, tile_collisions, dt)
-                self.draw_projectile(projectile.position, projectile.rotation)
+                self.draw_projectile(projectile.position, projectile.rotation, projectile.projectile_type)
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 

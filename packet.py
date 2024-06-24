@@ -1,3 +1,4 @@
+import math
 import struct
 import time
 from enum import IntEnum, auto
@@ -10,6 +11,41 @@ class LifecycleType(IntEnum):
     NEW_ROUND = auto()
     DONE = auto()
 
+
+# TODO: same as above
+class ProjectileType(IntEnum):
+    LASER = auto()
+    BALL = auto()
+    BULLET = auto()
+
+
+# TODO: same as above
+class Projectile:
+    SPEED = 200  # this needs to be synced in server.Projectile.SPEED
+
+    def __init__(self, projectile_type: ProjectileType) -> None:
+        self.id = 0
+        self.position: tuple[float, float] = (0, 0)
+        self.velocity: tuple[float, float] = (0, 0)
+        self.sender_id = 0
+        self.grace_period = 0.5
+        self.projectile_type = projectile_type
+
+        match projectile_type:
+            case ProjectileType.LASER:
+                self.speed = self.SPEED * 2
+                self.remaining_bounces = 1
+            case _:
+                self.speed = self.SPEED
+                self.remaining_bounces = 2
+
+    @property
+    def rotation(self) -> float:
+        # TODO refactor
+        x_vel, y_vel = self.velocity
+        angle = math.atan2(-y_vel, x_vel)
+        degrees = math.degrees(angle)
+        return (degrees + 360) % 360
 
 class PacketType(IntEnum):
     CONNECT = auto()
@@ -31,7 +67,7 @@ class PayloadFormat:
     SCORE = struct.Struct("II")
     COORDINATES = struct.Struct("Iffff")
     UPDATE = struct.Struct("IffffI")  # combines SCORE and COORDINATES
-    SHOOT = struct.Struct("Iffff")
+    SHOOT = struct.Struct("IffffI")
     HIT = struct.Struct("II")
     LIFECYCLE_CHANGE = struct.Struct("Id")  # LifecycleType, context
 

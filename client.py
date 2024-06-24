@@ -1,12 +1,10 @@
 from enum import IntEnum, auto
-import math
-import random
 import time
 import socket
 import logging
 import threading
 
-from packet import LifecycleType, Packet, PacketType, PayloadFormat
+from packet import LifecycleType, Packet, PacketType, PayloadFormat, ProjectileType, Projectile
 
 BUFF_SIZE = 1024
 
@@ -24,25 +22,6 @@ class Event:
     def __init__(self) -> None:
         self.event_type: EventType
         self.data: tuple
-
-
-class Projectile:
-    SPEED = 200  # this needs to be synced in server.Projectile.SPEED
-
-    def __init__(self) -> None:
-        self.id = 0
-        self.position: tuple[float, float] = (0, 0)
-        self.velocity: tuple[float, float] = (0, 0)
-        self.remaining_bounces = 2
-
-    @property
-    def rotation(self) -> float:
-        # TODO refactor
-        x_vel, y_vel = self.velocity
-        angle = math.atan2(-y_vel, x_vel)
-        degrees = math.degrees(angle)
-        return (degrees + 360) % 360
-
 
 class Player:
     def __init__(self) -> None:
@@ -189,9 +168,9 @@ class Client:
             self.event_queue.append(event)
 
         if packet.packet_type == PacketType.SHOOT:
-            id, x_pos, y_pos, x_vel, y_vel = PayloadFormat.SHOOT.unpack(
+            id, x_pos, y_pos, x_vel, y_vel, projectile_type = PayloadFormat.SHOOT.unpack(
                 packet.payload)
-            proj = Projectile()
+            proj = Projectile(projectile_type)
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
             proj.id = id
@@ -218,7 +197,7 @@ class Client:
                         ))
         self._send_packet(packet)
 
-    def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float]) -> None:
+    def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float], packet_type: ProjectileType) -> None:
         packet = Packet(PacketType.SHOOT, self.sequence_number,
                         PayloadFormat.SHOOT.pack(
                             0,  # un-initialized
@@ -226,6 +205,7 @@ class Client:
                             position[1],
                             velocity[0],
                             velocity[1],
+                            packet_type
                         ))
         self._send_packet(packet)
 
