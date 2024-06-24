@@ -155,6 +155,7 @@ class Game:
         self.asset_loader = AssetLoader()
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
+        pygame.display.set_caption("Ptanks")
         self.frame_count = 0
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
