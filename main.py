@@ -32,9 +32,11 @@ def lerp(a: float, b: float, f: float):
 
 
 def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame.Vector2, rotation: int):
+    count = len(images)
+    half_count = count // 2
     for i, img in enumerate(images):
         rotated_img = pygame.transform.rotate(img, rotation)
-        surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2, pos.y - rotated_img.get_height() // 2 - i))
+        surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2, pos.y - rotated_img.get_height() // 2 - i + half_count))
 
 
 class Player:
@@ -123,7 +125,7 @@ class UI:
             countdown = int(context - now)
             text = self.new_room_font.render(f"{countdown}", True, (0, 0, 0))
             rect = text.get_rect(topleft=(
-                SCREEN_WIDTH // 2 - text.get_width() // 2, SCREEN_HEIGHT // 2 - text.get_height() // 2))
+                DISPLAY_WIDTH  // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 - text.get_height() // 2))
 
             self.ui_screen.blit(text, rect)
 
@@ -143,7 +145,7 @@ class Game:
         self.player = Player(tank_sprites, tank_barrel_sprites)
         self.player.position = pygame.Vector2(
             SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        self.ui = UI(self.screen)
+        self.ui = UI(self.display)
         self.shoot_cooldown = 0
         self.running = False
 
@@ -264,23 +266,6 @@ class Game:
             self.screen.fill((128, 128, 128))
             self.draw_arena()
 
-            keys = pygame.key.get_pressed()
-            mouse = pygame.mouse.get_pressed()
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
-            mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
-            direction_vector = pygame.Vector2(
-                mouse_x, mouse_y) - self.player.position
-            direction_vector = direction_vector.normalize()
-
-            angle = math.atan2(-direction_vector[1], direction_vector[0])
-            degrees = math.degrees(angle)
-            self.player.barrel_rotation = (degrees + 360) % 360
-
-            if mouse[0] and not self.shoot_cooldown and self.player.alive:
-                self.shoot((direction_vector.x, direction_vector.y))
-                self.shoot_cooldown = self.SHOOT_COOLDOWN
-                HIT_SOUND.play()
 
             event_queue = self.client.event_queue.copy()
             if event_queue:
@@ -296,13 +281,32 @@ class Game:
                 for tile in self.arena.get_colliders()
             ]
 
-            if self.player.alive:
-                self.player.handle_input(keys, tile_collisions, dt)
-
             self.client.send_position(
                 self.player.position.x, self.player.position.y,
                 self.player.rotation, self.player.barrel_rotation
             )
+
+            keys = pygame.key.get_pressed()
+
+            if self.player.alive:
+                mouse = pygame.mouse.get_pressed()
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
+                mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
+                direction_vector = pygame.Vector2(
+                    mouse_x, mouse_y) - self.player.position
+                direction_vector = direction_vector.normalize()
+
+                angle = math.atan2(-direction_vector[1], direction_vector[0])
+                degrees = math.degrees(angle)
+                self.player.barrel_rotation = (degrees + 360) % 360
+
+                if mouse[0] and not self.shoot_cooldown:
+                    self.shoot((direction_vector.x, direction_vector.y))
+                    self.shoot_cooldown = self.SHOOT_COOLDOWN
+                    HIT_SOUND.play()
+
+                self.player.handle_input(keys, tile_collisions, dt)
 
             self.player.draw(self.screen)
 
@@ -315,13 +319,14 @@ class Game:
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 
+            pygame.transform.scale(
+                self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
+
             self.ui.draw(list(self.client.players.values()),
                          self.client.lifecycle_state,
                          self.client.lifecycle_context
                          )
 
-            pygame.transform.scale(
-                self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
 
             pygame.display.flip()
             pygame.event.pump()  # process event queue
