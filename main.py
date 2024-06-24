@@ -141,6 +141,10 @@ class UI:
         cooldown_cover.fill((255,255,255,200))
         bullet_sprite.blit(cooldown_cover, (0, -bullet_sprite.get_height() * (1 - (game.shoot_cooldown / game.SHOOT_COOLDOWN))))
 
+        if not game.player.alive:
+            cooldown_cover.fill((0, 0, 0, 200))
+            bullet_sprite.blit(cooldown_cover, (0,0))
+
         bullet_sprite = pygame.transform.scale(bullet_sprite, (32, 32))
 
         pos = (DISPLAY_WIDTH // 2 - bullet_sprite.get_width(), DISPLAY_HEIGHT - bullet_sprite.get_height())
