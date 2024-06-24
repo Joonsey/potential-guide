@@ -50,10 +50,11 @@ class Client:
         self.projectiles: list[Projectile] = []
         self.id = 0
         self.running = False
+        self.current_arena = 0
 
         self.event_queue: list[Event] = []
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
-        self.lifecycle_context = 0
+        self.lifecycle_context: float = 0
 
     def reset(self) -> None:
         for player in self.players.values():
@@ -112,7 +113,7 @@ class Client:
             player.barrel_rotation = barrel_rotation
             self.players[id] = player
 
-    def handle_lifecycle_change(self, state: LifecycleType, context: int) -> None:
+    def handle_lifecycle_change(self, state: LifecycleType, context: float) -> None:
         self.lifecycle_state = LifecycleType(state)
         self.lifecycle_context = context
 
@@ -123,6 +124,7 @@ class Client:
             event = Event()
             event.event_type = EventType.RESSURECT
             self.event_queue.append(event)
+            self.current_arena = int(context)
 
             self.reset()
 

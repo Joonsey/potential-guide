@@ -1,3 +1,6 @@
+from settings import SCREEN_HEIGHT, SCREEN_WIDTH
+
+
 class Tile:
     def __init__(self) -> None:
         self.tile_type: str = ""  # TODO: refactor
@@ -8,7 +11,7 @@ class Tile:
 
 
 class Arena:
-    def __init__(self, path: str, dimension: tuple[float, float]) -> None:
+    def __init__(self, path: str) -> None:
         self.height = 0
         self.width = 0
         self.map = []
@@ -22,8 +25,8 @@ class Arena:
                     line.strip()) if not self.width else self.width
                 self.map.append(list(line.strip()))
 
-        width = dimension[0] / self.width
-        height = dimension[1] / self.height
+        width = SCREEN_WIDTH / self.width
+        height = SCREEN_HEIGHT  / self.height
 
         for y, row in enumerate(self.map):
             for x, t in enumerate(row):
@@ -50,5 +53,5 @@ class Arena:
 
 
 if __name__ == "__main__":
-    arena = Arena("arena", (1080, 720))
+    arena = Arena("arena")
     print(arena.map)

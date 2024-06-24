@@ -1,7 +1,9 @@
+import os
 import socket
 import threading
 import time
 import logging
+import random
 import pygame
 
 from arena import Arena
@@ -10,8 +12,6 @@ from settings import (
     BUFF_SIZE,
     ROUND_INTERVAL,
     WAITING_TIME,
-    SCREEN_WIDTH,
-    SCREEN_HEIGHT
 )
 from shared import LifecycleType, Projectile, check_collision
 
@@ -42,14 +42,15 @@ class Server:
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
 
-        # TODO!!: refactor
-        self.arena = Arena("arena", (SCREEN_WIDTH, SCREEN_HEIGHT))
+        self._current_arena = 0
+        self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
+        self.tile_collisions = []
+        self.current_arena = 0
 
-        self.tile_collisions = [
-            pygame.Rect(tile.position[0],
-                        tile.position[1], tile.width, tile.height)
-            for tile in self.arena.get_colliders()
-        ]
+
+    @property
+    def arena(self) -> Arena:
+        return self.arenas[self.current_arena]
 
     def reset(self) -> None:
         for player in self.connections.values():
@@ -57,6 +58,19 @@ class Server:
             player.alive = True
 
         self.projectiles.clear()
+
+    @property
+    def current_arena(self) -> int:
+        return self._current_arena
+
+    @current_arena.setter
+    def current_arena(self, val: int) -> None:
+        self.tile_collisions = [
+            pygame.Rect(tile.position[0],
+                        tile.position[1], tile.width, tile.height)
+            for tile in self.arenas[val].get_colliders()
+        ]
+        self._current_arena = val
 
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
@@ -136,6 +150,8 @@ class Server:
 
         elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING] and time.time() >= self.lifecycle_context:
             self.lifecycle_state = LifecycleType.PLAYING
+            self.current_arena = random.randint(0, len(self.arenas) - 1)
+            self.lifecycle_context = self.current_arena
 
     def check_lifecycle(self) -> None:
         old_state = self.lifecycle_state
@@ -276,7 +292,7 @@ class Server:
             self.broadcast(packet)
 
     def broadcast(self, packet: Packet) -> None:
-        for addr in self.connections.keys():
+        for addr in self.connections.copy().keys():
             self._send_packet(packet, addr)
 
     def simulation_loop(self):

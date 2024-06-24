@@ -1,3 +1,4 @@
+import os
 import time
 import pygame
 import threading
@@ -110,7 +111,7 @@ class UI:
         self.new_room_font = pygame.font.Font(None, LARGE_FONT_SIZE)
         self.asset_loader = asset_loader
 
-    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int, game: 'Game') -> None:
+    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: float, game: 'Game') -> None:
         position_map = [
             {"topleft": (10, 10)},
             {"topright": (DISPLAY_WIDTH - 10, 10)}
@@ -168,10 +169,11 @@ class Game:
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
 
-        # TODO: REFACTOR
-        self.arena = Arena('arena', (SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.wall_sprites = [pygame.transform.scale(
-            sprite, (self.arena.tiles[0].width,  self.arena.tiles[0].height)) for sprite in wall_sprites]
+        self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
+
+    @property
+    def arena(self) -> Arena:
+        return self.arenas[self.client.current_arena]
 
     def run_local(self) -> None:
         s = Server()
