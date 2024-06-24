@@ -236,10 +236,17 @@ class Game:
         arena_surf.fill((0,0,0))
         arena_surf.set_colorkey((0,0,0))
 
-        for tile in self.arena.tiles:
+        for i, tile in enumerate(self.arena.tiles):
             if tile.tile_type == "#":
+                color = (255, 255, 255)
+
                 surf = pygame.Surface((tile.width, tile.height))
-                surf.fill((255, 255, 255))
+                if (i < len(self.arena.tiles) - self.arena.width):
+                    if (self.arena.tiles[i + self.arena.width].tile_type == "#"):
+                        ...
+                    else:
+                        color = (200, 200, 200)
+                surf.fill(color)
                 arena_surf.blit(surf, tile.position)
 
         outline(arena_surf, self.screen, (0, 0), 2)
