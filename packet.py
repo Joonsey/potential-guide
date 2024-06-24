@@ -29,8 +29,8 @@ class PayloadFormat:
     DISCONNECT  = struct.Struct("I")
     ONBOARD = struct.Struct("I")
     SCORE = struct.Struct("II")
-    COORDINATES = struct.Struct("Iff")
-    UPDATE = struct.Struct("IffI")  # combines SCORE and COORDINATES
+    COORDINATES = struct.Struct("Iffff")
+    UPDATE = struct.Struct("IffffI")  # combines SCORE and COORDINATES
     SHOOT = struct.Struct("Iffff")
     HIT = struct.Struct("II")
     LIFECYCLE_CHANGE = struct.Struct("Id")  # LifecycleType, context

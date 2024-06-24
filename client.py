@@ -40,6 +40,8 @@ class Player:
         # used for interpolation
         self.old_position: tuple[float, float] | None = None
         self.position: tuple[float, float] = (0, 0)
+        self.rotation = 0
+        self.barrel_rotation: float = 0
         self.id = 0
         self.name = ""
         self.score = 0
@@ -105,7 +107,7 @@ class Client:
 
         for i in range(player_count):
             data = packet.payload[i * size: size + size * i]
-            id, x, y, score = PayloadFormat.UPDATE.unpack(data)
+            id, x, y, rotation, barrel_rotation, score = PayloadFormat.UPDATE.unpack(data)
 
             if id in self.players.keys():
                 player = self.players[id]
@@ -118,6 +120,8 @@ class Client:
 
             player.score = score
             player.id = id
+            player.rotation = rotation
+            player.barrel_rotation = barrel_rotation
             self.players[id] = player
 
     def handle_lifecycle_change(self, state: LifecycleType, context: int) -> None:
@@ -159,10 +163,10 @@ class Client:
             self.handle_lifecycle_change(state, context)
 
         if packet.packet_type == PacketType.FORCE_MOVE:
-            id, x, y = PayloadFormat.COORDINATES.unpack(packet.payload)
+            id, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(packet.payload)
             event = Event()
             event.event_type = EventType.FORCE_MOVE
-            event.data = (x, y)
+            event.data = (x, y, rotation, barrel_rotation)
             self.event_queue.append(event)
 
         if packet.packet_type == PacketType.HIT:
@@ -194,13 +198,14 @@ class Client:
         self.running = True
         threading.Thread(target=self.listen, daemon=True).start()
 
-    def send_position(self, x: float, y: float) -> None:
+    def send_position(self, x: float, y: float, rotation: float, barrel_rotation: float) -> None:
         if not self.running:
             return
 
         packet = Packet(PacketType.COORDINATES, self.sequence_number,
                         PayloadFormat.COORDINATES.pack(
-                            self.id, x, y
+                            self.id, x, y,
+                            rotation, barrel_rotation
                         ))
         self._send_packet(packet)
 
@@ -218,11 +223,8 @@ class Client:
 
 if __name__ == "__main__":
     s = Client()
-    s.connect()
+    s.connect("127.0.0.1")
     s.start()
 
     while True:
-        if random.randint(0, 100) > 80:
-            s.send_position(random.randint(0, 100), random.randint(0, 100))
-
         time.sleep(.1)

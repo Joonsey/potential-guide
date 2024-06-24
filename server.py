@@ -29,6 +29,8 @@ class Connection:
         self.addr = addr
         self.id = 0
         self.position: tuple[float, float] = (0, 0)
+        self.rotation = 0
+        self.barrel_rotation: float = 0
         self.name = ""
         self.score = 0
         self.alive = True
@@ -166,7 +168,10 @@ class Server:
                     i += 1
 
                     packet = Packet(
-                        PacketType.FORCE_MOVE, 0, PayloadFormat.COORDINATES.pack(player.id, *new_pos))
+                        PacketType.FORCE_MOVE, 0,
+                        PayloadFormat.COORDINATES.pack(
+                            player.id, *new_pos, 0, 0
+                        ))
 
                     player.position = new_pos
 
@@ -206,6 +211,8 @@ class Server:
                     item.id,
                     item.position[0],
                     item.position[1],
+                    item.rotation,
+                    item.barrel_rotation,
                     item.score
                 )
             pack = Packet(PacketType.UPDATE, 0, update_data)
@@ -248,9 +255,11 @@ class Server:
             self.onboard_player(packet, addr)
 
         if packet.packet_type == PacketType.COORDINATES:
-            _, x, y = PayloadFormat.COORDINATES.unpack(packet.payload)
+            _, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(packet.payload)
             position = (x, y)
             self.connections[addr].position = position
+            self.connections[addr].rotation = rotation
+            self.connections[addr].barrel_rotation = barrel_rotation
 
         if packet.packet_type == PacketType.DISCONNECT:
             player_id = self.connections[addr].id

@@ -162,9 +162,13 @@ class Game:
         else:
             position = player.position
 
-        surf = pygame.Surface((16, 16))
-        surf.fill((255, 0, 0) if player.alive else (80, 80, 80))
-        self.screen.blit(surf, position)
+        # TODO: collisions are weird now because of the rotation of the sprite
+        render_stack(
+            self.screen,
+            self.player.sprites,
+            pygame.Vector2(position),
+            -player.rotation
+        )
 
     def draw_arena(self) -> None:
         for tile in self.arena.tiles:
@@ -216,6 +220,8 @@ class Game:
         if event.event_type == EventType.FORCE_MOVE:
             self.player.position.x = event.data[0]
             self.player.position.y = event.data[1]
+            self.player.rotation = event.data[2]
+            self.player.barrel_rotation = event.data[3]
 
         elif event.event_type == EventType.HIT:
             _, hit_id = event.data
@@ -278,7 +284,9 @@ class Game:
                 self.player.handle_input(keys, tile_collisions, dt)
 
             self.client.send_position(
-                self.player.position.x, self.player.position.y)
+                self.player.position.x, self.player.position.y,
+                self.player.rotation, self.player.barrel_rotation
+            )
 
             self.player.draw(self.screen)
 
