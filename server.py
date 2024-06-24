@@ -5,7 +5,7 @@ import logging
 import pygame
 
 from arena import Arena
-from packet import LifecycleType, Packet, PacketType, PayloadFormat, Projectile
+from packet import Packet, PacketType, PayloadFormat
 from settings import (
     BUFF_SIZE,
     ROUND_INTERVAL,
@@ -13,19 +13,10 @@ from settings import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT
 )
-
+from shared import LifecycleType, Projectile, check_collision
 
 
 LOGGER = logging.getLogger("Server")
-
-
-def check_collision(rect: tuple[float, float, float, float], other_rect: tuple[float, float, float, float]) -> bool:
-    x1, y1, w1, h1 = rect
-    x2, y2, w2, h2 = other_rect
-
-    overlap_x = (x1 < x2 + w2) and (x2 < x1 + w1)
-    overlap_y = (y1 < y2 + h2) and (y2 < y1 + h1)
-    return overlap_x and overlap_y
 
 
 class Connection:
@@ -51,7 +42,8 @@ class Server:
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
 
-        self.arena = Arena("arena", (SCREEN_WIDTH, SCREEN_HEIGHT))  # TODO!!: refactor
+        # TODO!!: refactor
+        self.arena = Arena("arena", (SCREEN_WIDTH, SCREEN_HEIGHT))
 
         self.tile_collisions = [
             pygame.Rect(tile.position[0],
@@ -101,7 +93,6 @@ class Server:
                 vel_y = -vel_y
                 # Set new position with reflected velocity
                 new_pos_y = y + vel_y * dt * Projectile.SPEED
-
 
             # Check for horizontal collisions
             if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
@@ -169,8 +160,6 @@ class Server:
                     player.position = new_pos
 
                     self._send_packet(packet, addr)
-
-
 
             if self.lifecycle_state == LifecycleType.WAITING_ROOM:
                 for player in self.connections.values():
@@ -254,7 +243,8 @@ class Server:
             self.onboard_player(packet, addr)
 
         if packet.packet_type == PacketType.COORDINATES:
-            _, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(packet.payload)
+            _, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(
+                packet.payload)
             position = (x, y)
             self.connections[addr].position = position
             self.connections[addr].rotation = rotation
@@ -297,7 +287,8 @@ class Server:
         last_iter_time = 0
         while self.running:
             start_time = time.time()
-            self.update_projectiles(self.tile_collisions, time.time() - last_iter_time)
+            self.update_projectiles(
+                self.tile_collisions, time.time() - last_iter_time)
             self.check_tank_hit()
 
             last_iter_time = self._wait_for_tick(start_time, 60)

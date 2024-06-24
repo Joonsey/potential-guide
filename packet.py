@@ -3,54 +3,6 @@ import struct
 import time
 from enum import IntEnum, auto
 
-# TODO: refactor and move out
-class LifecycleType(IntEnum):
-    STARTING = auto()
-    PLAYING = auto()
-    WAITING_ROOM = auto()
-    NEW_ROUND = auto()
-    DONE = auto()
-
-
-# TODO: same as above
-class ProjectileType(IntEnum):
-    LASER = auto()
-    BALL = auto()
-    BULLET = auto()
-
-
-# TODO: same as above
-class Projectile:
-    SPEED = 200  # this needs to be synced in server.Projectile.SPEED
-
-    def __init__(self, projectile_type: ProjectileType) -> None:
-        self.id = 0
-        self.position: tuple[float, float] = (0, 0)
-        self._velocity: tuple[float, float] = (0, 0)
-        self.sender_id = 0
-        self.grace_period = 0.1
-        self.projectile_type = projectile_type
-        self.rotation = 0
-
-        match projectile_type:
-            case ProjectileType.LASER:
-                self.speed = self.SPEED * 2
-                self.remaining_bounces = 1
-            case _:
-                self.speed = self.SPEED
-                self.remaining_bounces = 2
-
-    @property
-    def velocity(self) -> tuple[float, float]:
-        return self._velocity
-
-    @velocity.setter
-    def velocity(self, vel: tuple[float, float]):
-        self._velocity = vel
-        x_vel, y_vel = vel
-        angle = math.atan2(-y_vel, x_vel)
-        degrees = math.degrees(angle)
-        self.rotation = (degrees + 360) % 360
 
 class PacketType(IntEnum):
     CONNECT = auto()

@@ -4,9 +4,9 @@ import socket
 import logging
 import threading
 
-from packet import LifecycleType, Packet, PacketType, PayloadFormat, ProjectileType, Projectile
-
-BUFF_SIZE = 1024
+from packet import Packet, PacketType, PayloadFormat
+from settings import BUFF_SIZE
+from shared import LifecycleType, Projectile, ProjectileType
 
 
 LOGGER = logging.getLogger("Client")
