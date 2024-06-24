@@ -28,7 +28,7 @@ class Projectile:
         self.position: tuple[float, float] = (0, 0)
         self.velocity: tuple[float, float] = (0, 0)
         self.sender_id = 0
-        self.grace_period = 0.5
+        self.grace_period = 0.1
         self.projectile_type = projectile_type
 
         match projectile_type:
