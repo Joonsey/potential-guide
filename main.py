@@ -11,7 +11,7 @@ from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from settings import (
-    DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 
 pygame.mixer.init()
@@ -62,13 +62,15 @@ def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame
 
 
 class Player:
-    SPEED = 100
+    ACCELERATION = 100
     ROTATION_SPEED = 90
+    MAX_SPEED = 120
 
     def __init__(self, sprites: list[pygame.Surface], barrel_sprites: list[pygame.Surface]) -> None:
         self.position = pygame.Vector2()
         self.rotation = 0
         self.barrel_rotation: float = 0
+        self.velocity = pygame.Vector2()
         self.alive = True
 
         self.sprites = sprites
@@ -80,7 +82,7 @@ class Player:
 
         rad = math.radians(self.rotation)
         vel_x, vel_y = math.sin(rad), -math.cos(rad)
-        velocity = self.SPEED * dt
+        velocity = self.ACCELERATION * dt
 
         if keys[pygame.K_a]:
             self.rotation -= rotation_speed
@@ -89,14 +91,19 @@ class Player:
 
         start_pos = self.position.copy()
 
+
         if keys[pygame.K_w]:
-            self.position.y += vel_y * velocity
-            self.position.x += vel_x * velocity
+            self.velocity.y = vel_y * velocity
+            self.velocity.x = vel_x * velocity
 
-        if keys[pygame.K_s]:
-            self.position.y -= vel_y * velocity
-            self.position.x -= vel_x * velocity
+        elif keys[pygame.K_s]:
+            self.velocity.y = -vel_y * velocity
+            self.velocity.x = -vel_x * velocity
 
+        else:
+            self.velocity *= .5
+
+        self.position += self.velocity
         for rect in collision_list:
             if self.check_collision(rect):
                 self.position = start_pos
@@ -112,6 +119,11 @@ class Player:
 
     def draw(self, screen: pygame.Surface):
         local_position = self.position
+        radius = PLAYER_CIRCLE_RADIUS
+
+        if self.alive:
+            pygame.draw.ellipse(screen, (0,200,0), (local_position.x - radius / 2, local_position.y - radius / 2, 16 + radius, 16 + radius), 1)
+
         render_stack(screen, self.sprites, local_position, -self.rotation)
 
         barrel_pos = local_position.copy()
@@ -212,7 +224,11 @@ class Game:
 
         vec_pos = pygame.Vector2(position)
 
-        if player.alive and not frame_count % TRACK_INTERVAL: self.tracks.append(Track(vec_pos.copy(), player.rotation))
+        if player.alive:
+            radius = PLAYER_CIRCLE_RADIUS
+            pygame.draw.ellipse(self.screen, (200,0,0), (vec_pos.x - radius / 2, vec_pos.y - radius / 2, 16 + radius, 16 + radius), 1)
+
+            if not frame_count % TRACK_INTERVAL: self.tracks.append(Track(vec_pos.copy(), player.rotation))
 
         render_stack(
             self.screen,
