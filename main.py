@@ -41,13 +41,14 @@ class Player:
     SPEED = 100
     ROTATION_SPEED = 90
 
-    def __init__(self, sprites: list[pygame.Surface]) -> None:
+    def __init__(self, sprites: list[pygame.Surface], barrel_sprites: list[pygame.Surface]) -> None:
         self.position = pygame.Vector2()
         self.rotation = 0
         self.barrel_rotation: float = 0
         self.alive = True
 
         self.sprites = sprites
+        self.barrel_sprites = barrel_sprites
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
@@ -88,6 +89,10 @@ class Player:
     def draw(self, screen: pygame.Surface):
         # TODO: collisions are weird now because of the rotation of the sprite
         render_stack(screen, self.sprites, self.position, -self.rotation)
+
+        barrel_pos = self.position.copy()
+        barrel_pos.y -= 4
+        render_stack(screen, self.barrel_sprites, barrel_pos, int(self.barrel_rotation))
 
 
 class UI:
@@ -132,10 +137,10 @@ class Game:
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
 
-        #tank_sprites = self.asset_loader.sprite_sheets['tank']
-        car_sprites = self.asset_loader.sprite_sheets['car']
+        tank_sprites = self.asset_loader.sprite_sheets['tank']
+        tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
 
-        self.player = Player(car_sprites)
+        self.player = Player(tank_sprites, tank_barrel_sprites)
         self.player.position = pygame.Vector2(
             SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.ui = UI(self.screen)
@@ -162,13 +167,21 @@ class Game:
         else:
             position = player.position
 
+        vec_pos = pygame.Vector2(position)
         # TODO: collisions are weird now because of the rotation of the sprite
         render_stack(
             self.screen,
-            self.player.sprites,
-            pygame.Vector2(position),
+            self.asset_loader.sprite_sheets['tank'],
+            vec_pos,
             -player.rotation
         )
+        barrel_pos = vec_pos.copy()
+        barrel_pos.y -= 4
+        render_stack(
+            self.screen,
+            self.asset_loader.sprite_sheets['tank-barrel'],
+            barrel_pos,
+            int(player.barrel_rotation))
 
     def draw_arena(self) -> None:
         for tile in self.arena.tiles:
@@ -177,10 +190,13 @@ class Game:
                 surf.fill((255, 255, 255))
                 self.screen.blit(surf, tile.position)
 
-    def draw_projectile(self, position: tuple[float, float]) -> None:
-        surf = pygame.Surface((8, 8))
-        surf.fill((255, 128, 0))
-        self.screen.blit(surf, position)
+    def draw_projectile(self, position: tuple[float, float], rotation: float) -> None:
+        render_stack(
+            self.screen,
+            self.asset_loader.sprite_sheets['bullet-lazer'],
+            pygame.Vector2(position),
+            int(rotation)
+        )
 
     def update_projectile(self, projectile: Projectile, collision_list: list[pygame.Rect], dt: float) -> None:
         x, y = projectile.position
@@ -295,7 +311,7 @@ class Game:
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, tile_collisions, dt)
-                self.draw_projectile(projectile.position)
+                self.draw_projectile(projectile.position, projectile.rotation)
 
             self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
 

@@ -7,8 +7,11 @@ class AssetLoader:
         self.images = {}
         self.sounds = {}
         self.sprite_sheets = {
-            "bullets" : self.load_spritesheet("sprites/bullets.png", 8),
+            "bullet-ball" : self.load_spritesheet("sprites/bullet-ball.png", 8),
+            "bullet-lazer" : self.load_spritesheet("sprites/bullet-lazer.png", 8),
+            "bullet" : self.load_spritesheet("sprites/bullets.png", 8),
             "tank" : self.load_spritesheet("sprites/tank.png", 16),
+            "tank-barrel" : self.load_spritesheet("sprites/tank-barrel.png", 16),
             "car": [pygame.image.load('assets/sprites/car/' + img) for img in os.listdir('assets/sprites/car')]
         }
 
@@ -41,7 +44,7 @@ class AssetLoader:
             for col in range(columns):
                 x = col * sprite_width
                 y = row * sprite_height
-                subsurface = spritesheet.subsurface((x, y, sprite_width, sprite_height))
+                subsurface = spritesheet.subsurface((x, spritesheet.get_height() - sprite_height - y, sprite_width, sprite_height))
                 frames.append(subsurface)
         return frames
 

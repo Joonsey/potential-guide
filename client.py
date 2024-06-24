@@ -1,4 +1,5 @@
 from enum import IntEnum, auto
+import math
 import random
 import time
 import socket
@@ -33,6 +34,14 @@ class Projectile:
         self.position: tuple[float, float] = (0, 0)
         self.velocity: tuple[float, float] = (0, 0)
         self.remaining_bounces = 2
+
+    @property
+    def rotation(self) -> float:
+        # TODO refactor
+        x_vel, y_vel = self.velocity
+        angle = math.atan2(-y_vel, x_vel)
+        degrees = math.degrees(angle)
+        return (degrees + 360) % 360
 
 
 class Player:
