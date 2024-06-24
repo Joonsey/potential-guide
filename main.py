@@ -103,13 +103,14 @@ class Player:
 
 
 class UI:
-    def __init__(self, ui_screen: pygame.Surface) -> None:
+    def __init__(self, ui_screen: pygame.Surface, asset_loader: AssetLoader) -> None:
         self.ui_screen = ui_screen
         self.font_size = FONT_SIZE
         self.font = pygame.font.Font(None, self.font_size)
         self.new_room_font = pygame.font.Font(None, LARGE_FONT_SIZE)
+        self.asset_loader = asset_loader
 
-    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int) -> None:
+    def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int, game: 'Game') -> None:
         position_map = [
             {"topleft": (10, 10)},
             {"topright": (DISPLAY_WIDTH - 10, 10)}
@@ -134,6 +135,16 @@ class UI:
 
             self.ui_screen.blit(text, rect)
 
+        bullet_sprite = self.asset_loader.sprite_sheets['bullet-lazer'][4].copy()
+        cooldown_cover = pygame.Surface(bullet_sprite.get_size(), pygame.SRCALPHA)
+        cooldown_cover.fill((255,255,255,200))
+        bullet_sprite.blit(cooldown_cover, (0, -bullet_sprite.get_height() * (1 - (game.shoot_cooldown / game.SHOOT_COOLDOWN))))
+
+        bullet_sprite = pygame.transform.scale(bullet_sprite, (32, 32))
+
+        pos = (DISPLAY_WIDTH // 2 - bullet_sprite.get_width(), DISPLAY_HEIGHT - bullet_sprite.get_height())
+        self.ui_screen.blit(bullet_sprite, pos)
+
 
 class Game:
     SHOOT_COOLDOWN = .05
@@ -152,7 +163,7 @@ class Game:
         self.player = Player(tank_sprites, tank_barrel_sprites)
         self.player.position = pygame.Vector2(
             SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
-        self.ui = UI(self.display)
+        self.ui = UI(self.display, self.asset_loader)
         self.shoot_cooldown = 0
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
@@ -398,7 +409,8 @@ class Game:
 
             self.ui.draw(list(self.client.players.values()),
                          self.client.lifecycle_state,
-                         self.client.lifecycle_context
+                         self.client.lifecycle_context,
+                         self
                          )
 
             pygame.display.flip()
