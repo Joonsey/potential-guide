@@ -29,8 +29,8 @@ class Arena:
             for x, t in enumerate(row):
                 tile = Tile()
                 tile.tile_type = t
-                tile.width = width
-                tile.height = height
+                tile.width = width + 1  # offset by one to avoid floating point erros during scaling
+                tile.height = height + 1  # and to make hitboxes more generous
                 tile.position = (width * x,  height * y)
 
                 if t in ["#"]:

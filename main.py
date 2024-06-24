@@ -14,6 +14,7 @@ from client import Player as ClientPlayer
 DISPLAY_WIDTH, DISPLAY_HEIGHT = 1080, 720
 SCREEN_WIDTH, SCREEN_HEIGHT = 600, 420
 FONT_SIZE = 32
+TRACK_LIFETIME = 4
 
 
 pygame.mixer.init()
@@ -27,9 +28,34 @@ HIT_SOUND.set_volume(VOLUME)
 EXPLOSION_SOUND.set_volume(VOLUME)
 
 
+class Track:
+    def __init__(self, pos: pygame.Vector2, rotation: float) -> None:
+        self.lifetime = TRACK_LIFETIME
+        self.position = pos
+        self.rotation = rotation
+
+
 def lerp(a: float, b: float, f: float):
     return a * (1.0 - f) + (b * f)
 
+
+def inverted(img: pygame.Surface):
+   inv = pygame.Surface(img.get_rect().size, pygame.SRCALPHA)
+   inv.fill((255,255,255,255))
+   inv.blit(img, (0,0), None, pygame.BLEND_RGB_SUB)
+   return inv
+
+
+def outline(surf: pygame.Surface, dest: pygame.Surface, loc: tuple[int, int], depth: int = 1) -> None:
+    temp_surf = surf.copy()
+    inverted_surf = inverted(temp_surf)
+    inverted_surf.set_colorkey((255, 255, 255))
+    dest.blit(inverted_surf, (loc[0]-depth, loc[1]))
+    dest.blit(inverted_surf, (loc[0]+depth, loc[1]))
+    dest.blit(inverted_surf, (loc[0], loc[1]-depth))
+    dest.blit(inverted_surf, (loc[0], loc[1]+depth))
+    temp_surf.set_colorkey((0, 0, 0))
+    dest.blit(temp_surf, (0,0))
 
 def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame.Vector2, rotation: int):
     count = len(images)
@@ -50,7 +76,6 @@ class Player:
 
         self.sprites = sprites
         self.barrel_sprites = barrel_sprites
-        self.surf = pygame.Surface((0,0))
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
@@ -90,13 +115,11 @@ class Player:
 
     def draw(self, screen: pygame.Surface):
         local_position = self.position
-        self.surf = pygame.Surface((32, 32))
         render_stack(screen, self.sprites, local_position, -self.rotation)
 
         barrel_pos = local_position.copy()
         barrel_pos.y -= 4
         render_stack(screen, self.barrel_sprites, barrel_pos, int(self.barrel_rotation))
-
 
 class UI:
     def __init__(self, ui_screen: pygame.Surface) -> None:
@@ -108,7 +131,7 @@ class UI:
     def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int) -> None:
         position_map = [
             {"topleft": (10, 10)},
-            {"topright": (SCREEN_WIDTH - 10, 10)}
+            {"topright": (DISPLAY_WIDTH - 10, 10)}
         ]
         for i, player in enumerate(players[:2]):
             player_text = self.font.render(
@@ -139,6 +162,7 @@ class Game:
         self.asset_loader = AssetLoader()
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
+        self.frame_count = 0
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
@@ -150,6 +174,7 @@ class Game:
         self.ui = UI(self.display)
         self.shoot_cooldown = 0
         self.running = False
+        self.tracks: list[Track] = [] # x, y, time
 
         # TODO: REFACTOR
         self.arena = Arena('arena', (SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -161,7 +186,23 @@ class Game:
 
         self.run()
 
-    def draw_player(self, player: ClientPlayer) -> None:
+    def draw_and_update_tracks(self, dt) -> None:
+        tracks_to_cleanup = []
+        for i, track in enumerate(self.tracks):
+            track_surf: pygame.Surface = self.asset_loader.sprite_sheets['track'][0].copy()
+            track_surf = pygame.transform.rotate(track_surf, -track.rotation)
+            alpha = int(lerp(0, 255, track.lifetime / TRACK_LIFETIME))
+            track_surf.set_alpha(alpha)
+            self.screen.blit(track_surf, track.position)
+
+            track.lifetime = max(0, track.lifetime - dt)
+            if not track.lifetime:
+                tracks_to_cleanup.append(i)
+
+        for i in tracks_to_cleanup:
+            self.tracks.pop(i)
+
+    def draw_player(self, player: ClientPlayer, frame_count: int) -> None:
         if player.old_position:
             pos_x = lerp(
                 player.old_position[0], player.position[0], player.interpolation_t)
@@ -173,6 +214,9 @@ class Game:
             position = player.position
 
         vec_pos = pygame.Vector2(position)
+
+        if player.alive and frame_count % 20: self.tracks.append(Track(vec_pos.copy(), player.rotation))
+
         render_stack(
             self.screen,
             self.asset_loader.sprite_sheets['tank'],
@@ -188,12 +232,17 @@ class Game:
             int(player.barrel_rotation))
 
     def draw_arena(self) -> None:
+        arena_surf = self.screen.copy()
+        arena_surf.fill((0,0,0))
+        arena_surf.set_colorkey((0,0,0))
+
         for tile in self.arena.tiles:
             if tile.tile_type == "#":
-                self.wall_sprites
                 surf = pygame.Surface((tile.width, tile.height))
                 surf.fill((255, 255, 255))
-                self.screen.blit(surf, tile.position)
+                arena_surf.blit(surf, tile.position)
+
+        outline(arena_surf, self.screen, (0, 0), 2)
 
     def draw_projectile(self, position: tuple[float, float], rotation: float) -> None:
         render_stack(
@@ -258,6 +307,9 @@ class Game:
         pos = self.player.position
         self.client.send_shoot((pos.x, pos.y), velocity)
 
+    def incremenet_frame_count(self) -> None:
+        self.frame_count += 1
+
     def run(self, address: str = "127.0.0.1") -> None:
         self.clock = pygame.Clock()
         self.client.connect(address)
@@ -266,9 +318,11 @@ class Game:
 
         while self.running:
             dt = self.clock.tick(120) / 1000
+            self.frame_count += 1
+            self.incremenet_frame_count()
             self.screen.fill((128, 128, 128))
+            self.draw_and_update_tracks(dt)
             self.draw_arena()
-
 
             event_queue = self.client.event_queue.copy()
             if event_queue:
@@ -309,12 +363,13 @@ class Game:
                     self.shoot_cooldown = self.SHOOT_COOLDOWN
                     HIT_SOUND.play()
 
+                if self.frame_count % 20: self.tracks.append(Track(self.player.position.copy(), self.player.rotation))
                 self.player.handle_input(keys, tile_collisions, dt)
 
             self.player.draw(self.screen)
 
             for id, player in self.client.players.items():
-                self.draw_player(player) if id != self.client.id else ...
+                self.draw_player(player, self.frame_count) if id != self.client.id else ...
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, tile_collisions, dt)
