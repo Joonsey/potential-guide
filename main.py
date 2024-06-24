@@ -33,10 +33,9 @@ def lerp(a: float, b: float, f: float):
 
 def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame.Vector2, rotation: int):
     count = len(images)
-    half_count = count // 2
     for i, img in enumerate(images):
         rotated_img = pygame.transform.rotate(img, rotation)
-        surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2, pos.y - rotated_img.get_height() // 2 - i + half_count))
+        surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2 + count, pos.y - rotated_img.get_height() // 2 - i + count))
 
 
 class Player:
@@ -51,6 +50,7 @@ class Player:
 
         self.sprites = sprites
         self.barrel_sprites = barrel_sprites
+        self.surf = pygame.Surface((0,0))
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
@@ -89,10 +89,11 @@ class Player:
         return rect.colliderect(other_rect)
 
     def draw(self, screen: pygame.Surface):
-        # TODO: collisions are weird now because of the rotation of the sprite
-        render_stack(screen, self.sprites, self.position, -self.rotation)
+        local_position = self.position
+        self.surf = pygame.Surface((32, 32))
+        render_stack(screen, self.sprites, local_position, -self.rotation)
 
-        barrel_pos = self.position.copy()
+        barrel_pos = local_position.copy()
         barrel_pos.y -= 4
         render_stack(screen, self.barrel_sprites, barrel_pos, int(self.barrel_rotation))
 
@@ -141,6 +142,7 @@ class Game:
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
+        wall_sprites = self.asset_loader.sprite_sheets['wall']
 
         self.player = Player(tank_sprites, tank_barrel_sprites)
         self.player.position = pygame.Vector2(
@@ -151,6 +153,7 @@ class Game:
 
         # TODO: REFACTOR
         self.arena = Arena('arena', (SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.wall_sprites = [pygame.transform.scale(sprite, (self.arena.tiles[0].width,  self.arena.tiles[0].height)) for sprite in wall_sprites]
 
     def run_local(self) -> None:
         s = Server()
@@ -170,7 +173,6 @@ class Game:
             position = player.position
 
         vec_pos = pygame.Vector2(position)
-        # TODO: collisions are weird now because of the rotation of the sprite
         render_stack(
             self.screen,
             self.asset_loader.sprite_sheets['tank'],
@@ -188,6 +190,7 @@ class Game:
     def draw_arena(self) -> None:
         for tile in self.arena.tiles:
             if tile.tile_type == "#":
+                self.wall_sprites
                 surf = pygame.Surface((tile.width, tile.height))
                 surf.fill((255, 255, 255))
                 self.screen.blit(surf, tile.position)
