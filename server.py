@@ -127,9 +127,13 @@ class Server:
 
     def update_lifecycle(self) -> None:
         if self.lifecycle_state == LifecycleType.WAITING_ROOM:
-            if len(self.connections) == self.arena.max_players:
+            if len(self.connections) == self.arena.players_count:
                 self.lifecycle_state = LifecycleType.STARTING
                 self.lifecycle_context = time.time() + WAITING_TIME
+
+        elif len(self.connections) < self.arena.players_count:
+            self.lifecycle_state = LifecycleType.WAITING_ROOM
+            self.lifecycle_context = len(self.connections)
 
         elif self.lifecycle_state == LifecycleType.PLAYING:
             remaining_players = list(
@@ -165,6 +169,12 @@ class Server:
                     player.position = new_pos
 
                     self._send_packet(packet, addr)
+
+
+
+            if self.lifecycle_state == LifecycleType.WAITING_ROOM:
+                for player in self.connections.values():
+                    player.score = 0
 
     def check_tank_hit(self) -> None:
         projs_hit = []

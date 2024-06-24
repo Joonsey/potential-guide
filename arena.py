@@ -42,7 +42,7 @@ class Arena:
                 self.tiles.append(tile)
 
     @property
-    def max_players(self) -> int:
+    def players_count(self) -> int:
         return len(self.spawn_positions)
 
     def get_colliders(self) -> list[Tile]:
