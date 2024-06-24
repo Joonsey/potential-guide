@@ -6,10 +6,14 @@ import pygame
 
 from arena import Arena
 from packet import LifecycleType, Packet, PacketType, PayloadFormat
+from settings import (
+    BUFF_SIZE,
+    ROUND_INTERVAL,
+    WAITING_TIME,
+    SCREEN_WIDTH,
+    SCREEN_HEIGHT
+)
 
-BUFF_SIZE = 1024
-ROUND_INTERVAL = 5
-WAITING_TIME = ROUND_INTERVAL
 
 
 LOGGER = logging.getLogger("Server")
@@ -60,7 +64,7 @@ class Server:
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
 
-        self.arena = Arena("arena", (600, 420))  # TODO!!: refactor
+        self.arena = Arena("arena", (SCREEN_WIDTH, SCREEN_HEIGHT))  # TODO!!: refactor
 
         self.tile_collisions = [
             pygame.Rect(tile.position[0],

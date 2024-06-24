@@ -10,12 +10,9 @@ from packet import LifecycleType
 from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
-
-DISPLAY_WIDTH, DISPLAY_HEIGHT = 1080, 720
-SCREEN_WIDTH, SCREEN_HEIGHT = 600, 420
-FONT_SIZE = 32
-TRACK_LIFETIME = 4
-
+from settings import (
+    DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+)
 
 pygame.mixer.init()
 
@@ -126,7 +123,7 @@ class UI:
         self.ui_screen = ui_screen
         self.font_size = FONT_SIZE
         self.font = pygame.font.Font(None, self.font_size)
-        self.new_room_font = pygame.font.Font(None, 72)
+        self.new_room_font = pygame.font.Font(None, LARGE_FONT_SIZE)
 
     def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: int) -> None:
         position_map = [
@@ -215,7 +212,7 @@ class Game:
 
         vec_pos = pygame.Vector2(position)
 
-        if player.alive and frame_count % 20: self.tracks.append(Track(vec_pos.copy(), player.rotation))
+        if player.alive and not frame_count % TRACK_INTERVAL: self.tracks.append(Track(vec_pos.copy(), player.rotation))
 
         render_stack(
             self.screen,
@@ -370,7 +367,7 @@ class Game:
                     self.shoot_cooldown = self.SHOOT_COOLDOWN
                     HIT_SOUND.play()
 
-                if self.frame_count % 20: self.tracks.append(Track(self.player.position.copy(), self.player.rotation))
+                if not self.frame_count % TRACK_INTERVAL: self.tracks.append(Track(self.player.position.copy(), self.player.rotation))
                 self.player.handle_input(keys, tile_collisions, dt)
 
             self.player.draw(self.screen)
