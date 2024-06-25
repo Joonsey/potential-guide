@@ -79,7 +79,7 @@ class Spark(Particle):
 
 
 class Ripple(Particle):
-    def __init__(self, pos: pygame.Vector2, max_radius: float, force: float = 1, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
+    def __init__(self, pos: pygame.Vector2, max_radius: float, force: float = 1, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22, 128)) -> None:
         self.lifetime = RIPPLE_LIFETIME
         self.position = pos
         self.color = color
@@ -169,7 +169,7 @@ class Player:
             top_point = (x_pos + self.position.x + 8, y_pos + self.position.y + 8)
             left_point = (left_point_x + self.position.x + 8, left_point_y + self.position.y + 8)
             right_point = (right_point_x + self.position.x + 8, right_point_y + self.position.y + 8)
-            #pygame.draw.circle(screen, (0,0,0), top_point, 2)
+
             pygame.draw.polygon(screen, (0, 200, 0), [
                 top_point, left_point, right_point], 2) #pyright: ignore
 
@@ -411,6 +411,10 @@ class Game:
 
             player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
             self.client.projectiles.remove(proj)
+
+            self.particles.append(Ripple(player_pos.copy(), 20, force=1.5, color=pygame.Color(255, 255, 255), width=1))
+            self.particles.append(Ripple(player_pos.copy(), 25))
+
             for i in range(-10, 10, 6):
                 self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (255, 255, 255), 2, force=.9))
                 self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (191, 80, 50), 2))
