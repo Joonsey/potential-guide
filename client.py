@@ -117,6 +117,9 @@ class Client:
         self.lifecycle_state = LifecycleType(state)
         self.lifecycle_context = context
 
+        if state == LifecycleType.WAITING_ROOM:
+            self.current_arena = 0
+
         if state == LifecycleType.NEW_ROUND:
             ...
 
@@ -161,7 +164,7 @@ class Client:
 
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
-            self.players[hit_id].alive = False
+            self.players[hit_id].alive = self.lifecycle_state == LifecycleType.WAITING_ROOM
             event = Event()
             event.event_type = EventType.HIT
             event.data = (proj_id, hit_id)
