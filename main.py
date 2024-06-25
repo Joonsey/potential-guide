@@ -11,7 +11,7 @@ from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from settings import (
-    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, RIPPLE_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, lerp, outline, render_stack
 
@@ -32,6 +32,31 @@ class Track:
         self.position = pos
         self.rotation = rotation
 
+class Ripple:
+    def __init__(self, pos: pygame.Vector2, max_radius: float, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
+        self.lifetime = RIPPLE_LIFETIME
+        self.position = pos
+        self.color = color
+        self.max_radius = max_radius
+
+    def update(self, dt: float) -> None:
+        self.lifetime = max(0, self.lifetime - dt)
+
+    def draw(self, screen: pygame.Surface) -> None:
+        rad = self.radius * 2
+        h_to_w_coffactor = SCREEN_HEIGHT / SCREEN_WIDTH
+        followup_coefficient = 1.1
+        pygame.draw.ellipse(screen, (255,255,255),
+                            (self.position.x - rad / 2 * followup_coefficient, self.position.y - rad / 2 * followup_coefficient, rad * followup_coefficient, rad * h_to_w_coffactor * followup_coefficient),
+                            1)
+        pygame.draw.ellipse(screen, self.color,
+                            (self.position.x - rad / 2, self.position.y - rad / 2, rad, rad * h_to_w_coffactor),
+                            max(1, int(self.lifetime * 10 / RIPPLE_LIFETIME)))
+
+
+    @property
+    def radius(self) -> float:
+        return self.max_radius * (1 - self.lifetime / RIPPLE_LIFETIME)
 
 class Player:
     ACCELERATION = 100
@@ -173,6 +198,7 @@ class Game:
         self.shoot_cooldown = 0
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
+        self.ripples: list[Ripple] = []
 
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
 
@@ -324,6 +350,9 @@ class Game:
         elif event.event_type == EventType.HIT:
             _, hit_id = event.data
 
+            pos = self.client.players[hit_id].position
+            self.ripples.append(Ripple(pygame.Vector2(pos[0] + 8, pos[1] + 8), 20))
+
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
                 self.player.alive = False
@@ -408,6 +437,17 @@ class Game:
             for id, player in self.client.players.items():
                 self.draw_player(
                     player, self.frame_count) if id != self.client.id else ...
+
+
+            ripples_to_cleanup = []
+            for ripple in self.ripples:
+                ripple.update(dt)
+                ripple.draw(self.screen)
+                if ripple.lifetime == 0:
+                    ripples_to_cleanup.append(ripple)
+
+            for ripple in ripples_to_cleanup:
+                self.ripples.remove(ripple)
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, tile_collisions, dt)
