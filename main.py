@@ -72,8 +72,10 @@ class Spark(Particle):
             [self.pos.x - math.cos(self.angle) * self.lifetime * self.scale * 3.5, self.pos.y - math.sin(self.angle) * self.lifetime * self.scale * 3.5],
             [self.pos.x + math.cos(self.angle - math.pi / 2) * self.lifetime * self.scale * 0.3, self.pos.y - math.sin(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3],
             ]
-        pygame.draw.polygon(screen, self.color, points)
-        pygame.draw.polygon(screen, (255,255,255), points, 1)
+        pygame.draw.polygon(screen, self.color, points)  # pyright: ignore
+        pygame.draw.polygon(screen, (255, 255, 255),
+                            points, 1)  # pyright: ignore
+
 
 
 class Ripple(Particle):
@@ -160,12 +162,24 @@ class Player:
             pygame.draw.ellipse(screen, (0, 200, 0), (local_position.x - radius / 2,
                                 local_position.y - radius / 2, 16 + radius, 16 + radius), 1)
 
+            x_pos, y_pos = math.cos(math.radians(self.rotation - 90)) * 16, math.sin(math.radians(self.rotation - 90)) * 16
+            left_point_x, left_point_y = math.cos(math.radians(self.rotation)) * 8, math.sin(math.radians(self.rotation)) * 8
+            right_point_x, right_point_y  = math.cos(math.radians(self.rotation - 180)) * 8, math.sin(math.radians(self.rotation - 180)) * 8
+
+            top_point = (x_pos + self.position.x + 8, y_pos + self.position.y + 8)
+            left_point = (left_point_x + self.position.x + 8, left_point_y + self.position.y + 8)
+            right_point = (right_point_x + self.position.x + 8, right_point_y + self.position.y + 8)
+            #pygame.draw.circle(screen, (0,0,0), top_point, 2)
+            pygame.draw.polygon(screen, (0, 200, 0), [
+                top_point, left_point, right_point], 2) #pyright: ignore
+
         render_stack(screen, self.sprites, local_position, -self.rotation)
 
         barrel_pos = local_position.copy()
         barrel_pos.y -= 4
         render_stack(screen, self.barrel_sprites,
                      barrel_pos, int(self.barrel_rotation))
+
 
 
 class UI:
@@ -381,6 +395,7 @@ class Game:
         projectile.velocity = (vel_x, vel_y)
 
     def handle_event(self, event: Event) -> None:
+        #FIXME breaking index error
         if event.event_type == EventType.FORCE_MOVE:
             self.player.position.x = event.data[0]
             self.player.position.y = event.data[1]
@@ -390,6 +405,7 @@ class Game:
         elif event.event_type == EventType.HIT:
             proj_id, hit_id = event.data
 
+            #FIXME hit_id out of range on windows
             pos = self.client.players[hit_id].position
             proj = list(filter(lambda x: x.id == proj_id, self.client.projectiles))[0]
 
