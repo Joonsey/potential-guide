@@ -11,7 +11,7 @@ from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from settings import (
-    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, RIPPLE_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, RIPPLE_LIFETIME, SPARK_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, lerp, outline, render_stack
 
@@ -32,31 +32,70 @@ class Track:
         self.position = pos
         self.rotation = rotation
 
-class Ripple:
-    def __init__(self, pos: pygame.Vector2, max_radius: float, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
-        self.lifetime = RIPPLE_LIFETIME
-        self.position = pos
-        self.color = color
-        self.max_radius = max_radius
+
+class Particle:
+    def __init__(self) -> None:
+        self.lifetime = RIPPLE_LIFETIME #FIXME
 
     def update(self, dt: float) -> None:
         self.lifetime = max(0, self.lifetime - dt)
 
     def draw(self, screen: pygame.Surface) -> None:
+        ...
+
+
+class Spark(Particle):
+    def __init__(self, pos: pygame.Vector2, angle, color, scale=1):
+        super().__init__()
+        self.lifetime = SPARK_LIFETIME
+        self.pos = pos
+        self.angle = angle
+        self.scale = scale
+        self.color = color
+
+    def calculate_movement(self, dt):
+        return [math.cos(self.angle) * self.lifetime * dt, math.sin(self.angle) * self.lifetime * dt]
+
+    def update(self, dt):
+        super().update(dt)
+        movement = self.calculate_movement(dt * 20)
+        self.pos.x += movement[0]
+        self.pos.y += movement[1]
+
+        self.lifetime = max(0, self.lifetime - 2 * dt)
+
+    def draw(self, screen: pygame.Surface):
+        points = [
+            [self.pos.x + math.cos(self.angle) * self.lifetime * self.scale, self.pos.y + math.sin(self.angle) * self.lifetime * self.scale],
+            [self.pos.x + math.cos(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3, self.pos.y + math.sin(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3],
+            [self.pos.x - math.cos(self.angle) * self.lifetime * self.scale * 3.5, self.pos.y - math.sin(self.angle) * self.lifetime * self.scale * 3.5],
+            [self.pos.x + math.cos(self.angle - math.pi / 2) * self.lifetime * self.scale * 0.3, self.pos.y - math.sin(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3],
+            ]
+        pygame.draw.polygon(screen, self.color, points)
+        pygame.draw.polygon(screen, (255,255,255), points, 1)
+
+
+class Ripple(Particle):
+    def __init__(self, pos: pygame.Vector2, max_radius: float, start_radius: float = 0, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
+        self.lifetime = RIPPLE_LIFETIME
+        self.position = pos
+        self.color = color
+        self.max_radius = max_radius
+        self.start_radius = start_radius
+        self.width = width
+
+    def update(self, dt: float) -> None:
+        super().update(dt)
+
+    def draw(self, screen: pygame.Surface) -> None:
         rad = self.radius * 2
         h_to_w_coffactor = SCREEN_HEIGHT / SCREEN_WIDTH
-        followup_coefficient = 1.1
-        pygame.draw.ellipse(screen, (255,255,255),
-                            (self.position.x - rad / 2 * followup_coefficient, self.position.y - rad / 2 * followup_coefficient, rad * followup_coefficient, rad * h_to_w_coffactor * followup_coefficient),
-                            1)
-        pygame.draw.ellipse(screen, self.color,
-                            (self.position.x - rad / 2, self.position.y - rad / 2, rad, rad * h_to_w_coffactor),
-                            max(1, int(self.lifetime * 10 / RIPPLE_LIFETIME)))
-
+        pygame.draw.ellipse(screen, self.color, (self.position.x - rad / 2, self.position.y - rad / 2, rad, rad), self.width)
 
     @property
     def radius(self) -> float:
-        return self.max_radius * (1 - self.lifetime / RIPPLE_LIFETIME)
+        return self.max_radius * (1 - self.lifetime / RIPPLE_LIFETIME) * (1 + self.start_radius / self.max_radius)
+
 
 class Player:
     ACCELERATION = 100
@@ -198,7 +237,7 @@ class Game:
         self.shoot_cooldown = 0
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
-        self.ripples: list[Ripple] = []
+        self.particles: list[Particle] = []
 
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
 
@@ -348,10 +387,15 @@ class Game:
             self.player.barrel_rotation = event.data[3]
 
         elif event.event_type == EventType.HIT:
-            _, hit_id = event.data
+            proj_id, hit_id = event.data
 
             pos = self.client.players[hit_id].position
-            self.ripples.append(Ripple(pygame.Vector2(pos[0] + 8, pos[1] + 8), 20))
+            proj = list(filter(lambda x: x.id == proj_id, self.client.projectiles))[0]
+
+            player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
+            self.client.projectiles.remove(proj)
+            for i in range(-10, 10, 4):
+                self.particles.append(Spark(pygame.Vector2(player_pos), math.radians(- proj.rotation + i * 5), (191, 80, 50), 2))
 
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
@@ -439,15 +483,15 @@ class Game:
                     player, self.frame_count) if id != self.client.id else ...
 
 
-            ripples_to_cleanup = []
-            for ripple in self.ripples:
-                ripple.update(dt)
-                ripple.draw(self.screen)
-                if ripple.lifetime == 0:
-                    ripples_to_cleanup.append(ripple)
+            cleanup = []
+            for part in self.particles:
+                part.update(dt)
+                part.draw(self.screen)
+                if part.lifetime == 0:
+                    cleanup.append(part)
 
-            for ripple in ripples_to_cleanup:
-                self.ripples.remove(ripple)
+            for part in cleanup:
+                self.particles.remove(part)
 
             for projectile in self.client.projectiles:
                 self.update_projectile(projectile, tile_collisions, dt)

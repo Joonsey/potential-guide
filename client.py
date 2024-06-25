@@ -161,8 +161,6 @@ class Client:
 
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
-            self.projectiles = list(
-                filter(lambda x: x.id != proj_id, self.projectiles))
             self.players[hit_id].alive = False
             event = Event()
             event.event_type = EventType.HIT

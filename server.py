@@ -186,7 +186,7 @@ class Server:
 
         for proj in self.projectiles.values():
             proj_rect = (proj.position[0], proj.position[1], 8, 8)
-            for player in self.connections.values():
+            for player in list(filter(lambda x: x.alive, self.connections.values())):
                 if player.id == proj.sender_id and proj.grace_period:
                     # if sender is owner, and there is grace period left we skip
                     continue

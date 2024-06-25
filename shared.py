@@ -48,7 +48,7 @@ class Projectile:
         x_vel, y_vel = vel
         angle = math.atan2(-y_vel, x_vel)
         degrees = math.degrees(angle)
-        self.rotation = (degrees + 360) % 360
+        self.rotation = degrees % 360
 
 
 def check_collision(rect: tuple[float, float, float, float], other_rect: tuple[float, float, float, float]) -> bool:
