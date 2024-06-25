@@ -407,8 +407,12 @@ class Game:
             proj_id, hit_id = event.data
 
             #FIXME hit_id out of range on windows
+            proj_list = list(filter(lambda x: x.id == proj_id, self.client.projectiles))
+            if not proj_list or len(self.client.players) >= hit_id:
+                pass
+
+            proj = proj_list[0]
             pos = self.client.players[hit_id].position
-            proj = list(filter(lambda x: x.id == proj_id, self.client.projectiles))[0]
 
             player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
             self.client.projectiles.remove(proj)
