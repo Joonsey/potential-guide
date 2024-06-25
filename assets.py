@@ -9,6 +9,7 @@ class AssetLoader:
         self.sprite_sheets = {
             "bullet-ball" : self.load_spritesheet("sprites/bullet-ball.png", 8),
             "bullet-lazer" : self.load_spritesheet("sprites/bullet-lazer.png", 8),
+            "bullet-shockwave" : self.load_spritesheet("sprites/bullet-shockwave.png", 8),
             "bullet" : self.load_spritesheet("sprites/bullets.png", 8),
             "tank" : self.load_spritesheet("sprites/tank.png", 16),
             "tank-broken" : self.load_spritesheet("sprites/tank-broken.png", 16),

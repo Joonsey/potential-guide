@@ -16,6 +16,7 @@ class ProjectileType(IntEnum):
     LASER = auto()
     BALL = auto()
     BULLET = auto()
+    SHOCKWAVE = auto()
 
 
 class Projectile:
@@ -35,6 +36,10 @@ class Projectile:
                 self.speed = self.SPEED * 2
                 self.remaining_bounces = 1
                 self.cooldown = .05
+            case ProjectileType.SHOCKWAVE:
+                self.speed = self.SPEED * 2
+                self.remaining_bounces = 0
+                self.cooldown = .15
             case _:
                 self.speed = self.SPEED
                 self.remaining_bounces = 2
@@ -55,6 +60,7 @@ class Projectile:
     @staticmethod
     def get_cooldown(projectile_type: ProjectileType) -> float:
         return Projectile(projectile_type).cooldown
+
 
 def check_collision(rect: tuple[float, float, float, float], other_rect: tuple[float, float, float, float]) -> bool:
     x1, y1, w1, h1 = rect
@@ -94,3 +100,7 @@ def render_stack(surf: pygame.Surface, images: list[pygame.Surface], pos: pygame
         rotated_img = pygame.transform.rotate(img, rotation)
         surf.blit(rotated_img, (pos.x - rotated_img.get_width() // 2 +
                   count, pos.y - rotated_img.get_height() // 2 - i + count))
+
+def is_within_radius(center1: tuple[float, float], center2: tuple[float, float], radius: float):
+    distance = math.sqrt((center1[0] - center2[0]) ** 2 + (center1[1] - center2[1]) ** 2)
+    return distance <= radius
