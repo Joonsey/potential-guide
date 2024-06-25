@@ -98,8 +98,9 @@ class Client:
             data = packet.payload[i * size: size + size * i]
             id, x, y, rotation, barrel_rotation, score = PayloadFormat.UPDATE.unpack(data)
 
-            if id in self.players.keys():
-                player = self.players[id]
+            buff = self.players.copy()
+            if id in buff.keys():
+                player = buff[id]
                 player.old_position = player.position
                 player.position = (x, y)
                 player.interpolation_t = 0
@@ -116,6 +117,9 @@ class Client:
     def handle_lifecycle_change(self, state: LifecycleType, context: float) -> None:
         self.lifecycle_state = LifecycleType(state)
         self.lifecycle_context = context
+
+        if state == LifecycleType.WAITING_ROOM:
+            self.current_arena = 0
 
         if state == LifecycleType.NEW_ROUND:
             ...
@@ -161,7 +165,10 @@ class Client:
 
         if packet.packet_type == PacketType.HIT:
             proj_id, hit_id = PayloadFormat.HIT.unpack(packet.payload)
-            self.players[hit_id].alive = False
+            if hit_id not in self.players.keys():
+                return
+
+            self.players[hit_id].alive = self.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
             event = Event()
             event.event_type = EventType.HIT
             event.data = (proj_id, hit_id)

@@ -4,6 +4,7 @@ import pygame
 import threading
 import sys
 import math
+import random
 
 from arena import Arena
 from assets import AssetLoader
@@ -259,7 +260,7 @@ class Game:
         self.particles: list[Particle] = []
 
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
-        self.player.position = pygame.Vector2(self.arena.spawn_positions[len(self.client.players) % self.arena.players_count])
+        self.player.position = pygame.Vector2(random.choice(self.arena.spawn_positions))
 
     @property
     def arena(self) -> Arena:
@@ -448,7 +449,7 @@ class Game:
 
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
-                self.player.alive = False
+                self.player.alive = self.client.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
 
         elif event.event_type == EventType.RESSURECT:
             self.player.alive = True

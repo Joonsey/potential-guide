@@ -139,6 +139,7 @@ class Server:
         elif len(self.connections) < self.arena.players_count:
             self.lifecycle_state = LifecycleType.WAITING_ROOM
             self.lifecycle_context = len(self.connections)
+            self.current_arena = 0
 
         elif self.lifecycle_state == LifecycleType.PLAYING:
             remaining_players = list(
@@ -194,7 +195,7 @@ class Server:
                 player_rect = (player.position[0], player.position[1], 16, 16)
                 if check_collision(proj_rect, player_rect):
                     projs_hit.append(proj.id)
-                    player.alive = False
+                    player.alive = self.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
                     self.send_hit(proj.id, player.id)
 
         for proj_id in projs_hit:
