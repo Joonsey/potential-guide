@@ -11,7 +11,7 @@ from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from settings import (
-    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, RIPPLE_LIFETIME, SPARK_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, RIPPLE_LIFETIME, SPARK_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, lerp, outline, render_stack
 
@@ -105,15 +105,17 @@ class Player:
     ROTATION_SPEED = 90
     MAX_SPEED = 120
 
-    def __init__(self, sprites: list[pygame.Surface], barrel_sprites: list[pygame.Surface]) -> None:
+    def __init__(self, sprites: list[pygame.Surface], barrel_sprites: list[pygame.Surface], broken_sprites: list[pygame.Surface]) -> None:
         self.position = pygame.Vector2()
         self.rotation = 0
         self.barrel_rotation: float = 0
         self.velocity = pygame.Vector2()
         self.alive = True
 
+        # refactor
         self.sprites = sprites
         self.barrel_sprites = barrel_sprites
+        self.broken_sprites = broken_sprites
 
     def handle_input(self, keys, collision_list: list[pygame.Rect], dt: float) -> None:
         # TODO: refactor
@@ -158,6 +160,9 @@ class Player:
         local_position = self.position
         radius = PLAYER_CIRCLE_RADIUS
 
+        pygame.draw.ellipse(screen, PLAYER_SHADOW_COLOR, (local_position.x - radius / 2,
+                                                        local_position.y - radius / 2, 16 + radius, 16 + radius), 0)
+
         if self.alive:
             pygame.draw.ellipse(screen, (0, 200, 0), (local_position.x - radius / 2,
                                 local_position.y - radius / 2, 16 + radius, 16 + radius), 1)
@@ -173,13 +178,14 @@ class Player:
             pygame.draw.polygon(screen, (0, 200, 0), [
                 top_point, left_point, right_point], 2) #pyright: ignore
 
-        render_stack(screen, self.sprites, local_position, -self.rotation)
+            render_stack(screen, self.sprites, local_position, -self.rotation)
 
-        barrel_pos = local_position.copy()
-        barrel_pos.y -= 4
-        render_stack(screen, self.barrel_sprites,
-                     barrel_pos, int(self.barrel_rotation))
+            barrel_pos = local_position.copy()
+            barrel_pos.y -= 4
+            render_stack(screen, self.barrel_sprites, barrel_pos, int(self.barrel_rotation))
 
+        else:
+            render_stack(screen, self.broken_sprites, local_position, -self.rotation)
 
 
 class UI:
@@ -243,9 +249,9 @@ class Game:
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
-        wall_sprites = self.asset_loader.sprite_sheets['wall']
+        tank_broken_sprites = self.asset_loader.sprite_sheets['tank-broken']
 
-        self.player = Player(tank_sprites, tank_barrel_sprites)
+        self.player = Player(tank_sprites, tank_barrel_sprites, tank_broken_sprites)
         self.ui = UI(self.display, self.asset_loader)
         self.shoot_cooldown = 0
         self.running = False
@@ -294,6 +300,9 @@ class Game:
             position = player.position
 
         vec_pos = pygame.Vector2(position)
+        radius = PLAYER_CIRCLE_RADIUS
+        pygame.draw.ellipse(self.screen, PLAYER_SHADOW_COLOR, (vec_pos.x - radius / 2,
+                                                             vec_pos.y - radius / 2, 16 + radius, 16 + radius), 0)
 
         if player.alive:
             radius = PLAYER_CIRCLE_RADIUS
@@ -303,19 +312,24 @@ class Game:
             if not frame_count % TRACK_INTERVAL:
                 self.tracks.append(Track(vec_pos.copy(), player.rotation))
 
-        render_stack(
-            self.screen,
-            self.asset_loader.sprite_sheets['tank'],
-            vec_pos,
-            -player.rotation
-        )
-        barrel_pos = vec_pos.copy()
-        barrel_pos.y -= 4
-        render_stack(
-            self.screen,
-            self.asset_loader.sprite_sheets['tank-barrel'],
-            barrel_pos,
-            int(player.barrel_rotation))
+            render_stack(
+                self.screen,
+                self.asset_loader.sprite_sheets['tank'],
+                vec_pos,
+                -player.rotation
+            )
+            barrel_pos = vec_pos.copy()
+            barrel_pos.y -= 4
+            render_stack(self.screen, self.asset_loader.sprite_sheets['tank-barrel'], barrel_pos, int(player.barrel_rotation))
+
+        else:
+            render_stack(
+                self.screen,
+                self.asset_loader.sprite_sheets['tank-broken'],
+                vec_pos,
+                -player.rotation
+            )
+
 
     def draw_arena(self) -> None:
         arena_surf = self.screen.copy()
