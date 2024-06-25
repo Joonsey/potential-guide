@@ -28,7 +28,7 @@ EXPLOSION_SOUND.set_volume(VOLUME)
 
 class Track:
     def __init__(self, pos: pygame.Vector2, rotation: float) -> None:
-        self.lifetime = TRACK_LIFETIME
+        self.lifetime: float = TRACK_LIFETIME
         self.position = pos
         self.rotation = rotation
 
@@ -45,9 +45,9 @@ class Particle:
 
 
 class Spark(Particle):
-    def __init__(self, pos: pygame.Vector2, angle, color, scale=1, force: float = 1):
+    def __init__(self, pos: pygame.Vector2, angle, color, scale: float = 1, force: float = 1):
         super().__init__()
-        self.lifetime = SPARK_LIFETIME
+        self.lifetime: float = SPARK_LIFETIME
         self.pos = pos
         self.angle = angle
         self.scale = scale
@@ -80,7 +80,7 @@ class Spark(Particle):
 
 class Ripple(Particle):
     def __init__(self, pos: pygame.Vector2, max_radius: float, force: float = 1, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22, 128)) -> None:
-        self.lifetime = RIPPLE_LIFETIME
+        self.lifetime: float = RIPPLE_LIFETIME
         self.position = pos
         self.color = color
         self.max_radius = max_radius
@@ -246,8 +246,6 @@ class Game:
         wall_sprites = self.asset_loader.sprite_sheets['wall']
 
         self.player = Player(tank_sprites, tank_barrel_sprites)
-        self.player.position = pygame.Vector2(
-            SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
         self.ui = UI(self.display, self.asset_loader)
         self.shoot_cooldown = 0
         self.running = False
@@ -255,6 +253,7 @@ class Game:
         self.particles: list[Particle] = []
 
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
+        self.player.position = pygame.Vector2(self.arena.spawn_positions[len(self.client.players) % self.arena.players_count])
 
     @property
     def arena(self) -> Arena:
@@ -386,6 +385,8 @@ class Game:
             new_pos_x = x + vel_x * dt * Projectile.SPEED
 
         if colided:
+            self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(vel_y + .20, vel_x + .20), (255, 255, 255, 120), .2, force = .12))
+            self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(vel_y - .20, vel_x - .20), (255, 255, 255, 120), .2, force = .12))
             if projectile.remaining_bounces == 0:
                 self.client.projectiles.remove(projectile)
                 return
@@ -412,7 +413,9 @@ class Game:
             player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
             self.client.projectiles.remove(proj)
 
-            self.particles.append(Ripple(player_pos.copy(), 20, force=1.5, color=pygame.Color(255, 255, 255), width=1))
+            r = Ripple(player_pos.copy(), 20, force=1.5, color=pygame.Color(255, 255, 255), width=1)
+            r.lifetime = RIPPLE_LIFETIME * 1.3
+            self.particles.append(r)
             self.particles.append(Ripple(player_pos.copy(), 25))
 
             for i in range(-10, 10, 6):
