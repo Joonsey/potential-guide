@@ -45,16 +45,17 @@ class Particle:
 
 
 class Spark(Particle):
-    def __init__(self, pos: pygame.Vector2, angle, color, scale=1):
+    def __init__(self, pos: pygame.Vector2, angle, color, scale=1, force: float = 1):
         super().__init__()
         self.lifetime = SPARK_LIFETIME
         self.pos = pos
         self.angle = angle
         self.scale = scale
         self.color = color
+        self.force = force
 
     def calculate_movement(self, dt):
-        return [math.cos(self.angle) * self.lifetime * dt, math.sin(self.angle) * self.lifetime * dt]
+        return [math.cos(self.angle) * self.lifetime * dt * self.force, math.sin(self.angle) * self.lifetime * dt * self.force]
 
     def update(self, dt):
         super().update(dt)
@@ -76,13 +77,13 @@ class Spark(Particle):
 
 
 class Ripple(Particle):
-    def __init__(self, pos: pygame.Vector2, max_radius: float, start_radius: float = 0, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
+    def __init__(self, pos: pygame.Vector2, max_radius: float, force: float = 1, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22)) -> None:
         self.lifetime = RIPPLE_LIFETIME
         self.position = pos
         self.color = color
         self.max_radius = max_radius
-        self.start_radius = start_radius
         self.width = width
+        self.force = force
 
     def update(self, dt: float) -> None:
         super().update(dt)
@@ -94,7 +95,7 @@ class Ripple(Particle):
 
     @property
     def radius(self) -> float:
-        return self.max_radius * (1 - self.lifetime / RIPPLE_LIFETIME) * (1 + self.start_radius / self.max_radius)
+        return self.max_radius * self.force * (1 - self.lifetime / RIPPLE_LIFETIME)
 
 
 class Player:
@@ -394,8 +395,15 @@ class Game:
 
             player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
             self.client.projectiles.remove(proj)
-            for i in range(-10, 10, 4):
-                self.particles.append(Spark(pygame.Vector2(player_pos), math.radians(- proj.rotation + i * 5), (191, 80, 50), 2))
+            for i in range(-10, 10, 6):
+                self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (255, 255, 255), 2, force=.9))
+                self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (191, 80, 50), 2))
+
+            for i in range(6):
+                self.particles.append(Spark(player_pos.copy(), i + .5, (0, 0, 0), 1, force=.3))
+
+            for i in range(6):
+                self.particles.append(Spark(player_pos.copy(), i, (255, 255, 255), 1, force=.2))
 
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
