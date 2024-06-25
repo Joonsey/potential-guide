@@ -259,6 +259,10 @@ class Server:
         if packet.packet_type == PacketType.CONNECT:
             self.onboard_player(packet, addr)
 
+        if addr not in self.connections:
+            print("got a packet from unknown, ignoring")
+            return
+
         if packet.packet_type == PacketType.COORDINATES:
             _, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(
                 packet.payload)

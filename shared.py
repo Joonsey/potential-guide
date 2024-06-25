@@ -34,9 +34,11 @@ class Projectile:
             case ProjectileType.LASER:
                 self.speed = self.SPEED * 2
                 self.remaining_bounces = 1
+                self.cooldown = .05
             case _:
                 self.speed = self.SPEED
                 self.remaining_bounces = 2
+                self.cooldown = .075
 
     @property
     def velocity(self) -> tuple[float, float]:
@@ -50,6 +52,9 @@ class Projectile:
         degrees = math.degrees(angle)
         self.rotation = degrees % 360
 
+    @staticmethod
+    def get_cooldown(projectile_type: ProjectileType) -> float:
+        return Projectile(projectile_type).cooldown
 
 def check_collision(rect: tuple[float, float, float, float], other_rect: tuple[float, float, float, float]) -> bool:
     x1, y1, w1, h1 = rect

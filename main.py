@@ -103,7 +103,7 @@ class Ripple(Particle):
 
 class Player:
     ACCELERATION = 100
-    ROTATION_SPEED = 90
+    ROTATION_SPEED = 120
     MAX_SPEED = 120
 
     def __init__(self, sprites: list[pygame.Surface], barrel_sprites: list[pygame.Surface], broken_sprites: list[pygame.Surface]) -> None:
@@ -112,6 +112,7 @@ class Player:
         self.barrel_rotation: float = 0
         self.velocity = pygame.Vector2()
         self.alive = True
+        self.bullets = [ProjectileType.LASER, ProjectileType.BULLET]
 
         # refactor
         self.sprites = sprites
@@ -202,6 +203,11 @@ class UI:
             {"topleft": (10, 10)},
             {"topright": (DISPLAY_WIDTH - 10, 10)}
         ]
+
+        bullet_icon_map = {
+            ProjectileType.LASER: self.asset_loader.sprite_sheets['bullet-lazer'][4].copy(),
+            ProjectileType.BULLET: self.asset_loader.sprite_sheets['bullet'][4].copy(),
+        }
         for i, player in enumerate(players[:2]):
             player_text = self.font.render(
                 f"Player {player.id}: {player.score}", True, (0, 0, 0))
@@ -222,24 +228,29 @@ class UI:
 
             self.ui_screen.blit(text, rect)
 
-        bullet_sprite = self.asset_loader.sprite_sheets['bullet-lazer'][4].copy()
-        cooldown_cover = pygame.Surface(bullet_sprite.get_size(), pygame.SRCALPHA)
-        cooldown_cover.fill((255,255,255,200))
-        bullet_sprite.blit(cooldown_cover, (0, -bullet_sprite.get_height() * (1 - (game.shoot_cooldown / game.SHOOT_COOLDOWN))))
+        icon_size = 16
+        bullet_count = len(game.player.bullets)
+        cd_surf = pygame.Surface((bullet_count * icon_size, bullet_count * icon_size))
+        cd_surf.set_colorkey((0,0,0))
+        for i, bullet in enumerate(game.player.bullets):
+            bullet_sprite = bullet_icon_map[bullet]
+            cooldown_cover = pygame.Surface(bullet_sprite.get_size(), pygame.SRCALPHA)
+            cooldown_cover.fill((255,255,255,200))
+            bullet_sprite.blit(cooldown_cover, (0, -bullet_sprite.get_height() * (1 - (game.shoot_cooldown[i] / Projectile.get_cooldown(bullet)))))
 
-        if not game.player.alive:
-            cooldown_cover.fill((0, 0, 0, 200))
-            bullet_sprite.blit(cooldown_cover, (0,0))
+            if not game.player.alive:
+                cooldown_cover.fill((0, 0, 0, 200))
+                bullet_sprite.blit(cooldown_cover, (0,0))
 
-        bullet_sprite = pygame.transform.scale(bullet_sprite, (32, 32))
+            bullet_sprite = pygame.transform.scale(bullet_sprite, (bullet_count * icon_size, bullet_count * icon_size))
+            cd_surf.blit(bullet_sprite, (i * icon_size, 0))
 
-        pos = (DISPLAY_WIDTH // 2 - bullet_sprite.get_width(), DISPLAY_HEIGHT - bullet_sprite.get_height())
-        self.ui_screen.blit(bullet_sprite, pos)
+
+        pos = (DISPLAY_WIDTH // 2 - cd_surf.get_width(), DISPLAY_HEIGHT - cd_surf.get_height())
+        self.ui_screen.blit(cd_surf, pos)
 
 
 class Game:
-    SHOOT_COOLDOWN = .05
-
     def __init__(self) -> None:
         self.client = Client()
         self.asset_loader = AssetLoader()
@@ -254,7 +265,7 @@ class Game:
 
         self.player = Player(tank_sprites, tank_barrel_sprites, tank_broken_sprites)
         self.ui = UI(self.display, self.asset_loader)
-        self.shoot_cooldown = 0
+        self.shoot_cooldown = [0.0, 0.0]
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
         self.particles: list[Particle] = []
@@ -423,14 +434,16 @@ class Game:
 
             #FIXME hit_id out of range on windows
             proj_list = list(filter(lambda x: x.id == proj_id, self.client.projectiles))
-            if not proj_list or len(self.client.players) >= hit_id:
-                pass
 
-            proj = proj_list[0]
-            pos = self.client.players[hit_id].position
+            proj = proj_list[0] if proj_list else None
+            self.client.projectiles.remove(proj) if proj else ...
+
+            player = self.client.players[hit_id]
+
+            pos = player.position
+            desired_rotation = proj.rotation if proj else player.rotation
 
             player_pos = pygame.Vector2(pos[0] + 8, pos[1] + 8)
-            self.client.projectiles.remove(proj)
 
             r = Ripple(player_pos.copy(), 20, force=1.5, color=pygame.Color(255, 255, 255), width=1)
             r.lifetime = RIPPLE_LIFETIME * 1.3
@@ -438,8 +451,8 @@ class Game:
             self.particles.append(Ripple(player_pos.copy(), 25))
 
             for i in range(-10, 10, 6):
-                self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (255, 255, 255), 2, force=.9))
-                self.particles.append(Spark(player_pos.copy(), math.radians(- proj.rotation + i * 5), (191, 80, 50), 2))
+                self.particles.append(Spark(player_pos.copy(), math.radians(- desired_rotation + i * 5), (255, 255, 255), 2, force=.9))
+                self.particles.append(Spark(player_pos.copy(), math.radians(- desired_rotation + i * 5), (191, 80, 50), 2))
 
             for i in range(6):
                 self.particles.append(Spark(player_pos.copy(), i + .5, (0, 0, 0), 1, force=.3))
@@ -509,16 +522,16 @@ class Game:
                 degrees = math.degrees(angle)
                 self.player.barrel_rotation = (degrees + 360) % 360
 
-                if mouse[0] and not self.shoot_cooldown:
+                if mouse[0] and not self.shoot_cooldown[0]:
                     self.shoot(
                         (direction_vector.x, direction_vector.y), ProjectileType.LASER)
-                    self.shoot_cooldown = self.SHOOT_COOLDOWN
+                    self.shoot_cooldown[0] = Projectile.get_cooldown(self.player.bullets[0])
                     HIT_SOUND.play()
 
-                if mouse[2] and not self.shoot_cooldown:
+                if mouse[2] and not self.shoot_cooldown[1]:
                     self.shoot((direction_vector.x, direction_vector.y),
                                ProjectileType.BULLET)
-                    self.shoot_cooldown = self.SHOOT_COOLDOWN
+                    self.shoot_cooldown[1] = Projectile.get_cooldown(self.player.bullets[1])
                     HIT_SOUND.play()
 
                 if not self.frame_count % TRACK_INTERVAL:
@@ -548,7 +561,8 @@ class Game:
                 self.draw_projectile(
                     projectile.position, projectile.rotation, projectile.projectile_type)
 
-            self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
+            self.shoot_cooldown[0] = max(0, self.shoot_cooldown[0] - dt / 10)
+            self.shoot_cooldown[1] = max(0, self.shoot_cooldown[1] - dt / 10)
 
             pygame.transform.scale(
                 self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
