@@ -6,6 +6,7 @@ import sys
 import math
 import random
 
+from enum import IntEnum, auto
 from arena import Arena
 from assets import AssetLoader
 from server import Server
@@ -14,7 +15,7 @@ from client import Player as ClientPlayer
 from settings import (
     ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, RIPPLE_LIFETIME, SPARK_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
-from shared import LifecycleType, ProjectileType, lerp, outline, render_stack
+from shared import LifecycleType, ProjectileType, check_collision, lerp, outline, render_stack
 
 pygame.mixer.init()
 
@@ -25,6 +26,47 @@ EXPLOSION_SOUND = pygame.mixer.Sound('assets/explosion.wav')
 
 HIT_SOUND.set_volume(VOLUME)
 EXPLOSION_SOUND.set_volume(VOLUME)
+
+
+class GameState(IntEnum):
+    PLAYING = auto()
+    MAIN_MENU = auto()
+    JOIN_GAME = auto()
+
+class WidgetType(IntEnum):
+    PLAY = auto()
+    QUIT = auto()
+    JOIN_GAME = auto()
+    NONE = auto()
+
+
+class Widget:
+    def __init__(self, pos: pygame.Vector2, font_surf: pygame.Surface, widget_type: WidgetType) -> None:
+        self.position = pos
+        self.surf = font_surf
+        self.widget_type = widget_type
+        offset = pygame.Vector2(self.width / 2, self.height / 2)
+        self.position -= offset
+
+    def on_click(self, game: 'Game'):
+        if self.widget_type == WidgetType.JOIN_GAME:
+            game.widgets = [
+                Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2), game.ui.new_room_font.render(game.address, True, (255,255,255)), WidgetType.NONE),
+                Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 120), game.ui.new_room_font.render("join", True, (255,255,255)), WidgetType.PLAY)
+            ]
+            game.state = GameState.JOIN_GAME
+        if self.widget_type == WidgetType.PLAY:
+            game.start_playing()
+        elif self.widget_type == WidgetType.QUIT:
+            game.running = False
+
+    @property
+    def width(self):
+        return self.surf.get_width()
+
+    @property
+    def height(self):
+        return self.surf.get_height()
 
 
 class Track:
@@ -247,6 +289,8 @@ class Game:
         self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
         pygame.display.set_caption("Ptanks")
         self.frame_count = 0
+        self.state = GameState.MAIN_MENU
+        self.address: str = "127.0.0.1"
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
@@ -258,6 +302,11 @@ class Game:
         self.running = False
         self.tracks: list[Track] = []  # x, y, time
         self.particles: list[Particle] = []
+        self.widgets: list[Widget] = [
+            Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2), self.ui.new_room_font.render("quick play", True, (0,0,0)), WidgetType.PLAY),
+            Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 120), self.ui.new_room_font.render("quit", True, (0,0,0)), WidgetType.QUIT),
+            Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 240), self.ui.new_room_font.render("join game", True, (0,0,0)), WidgetType.JOIN_GAME)
+        ]
 
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
         self.player.position = pygame.Vector2(random.choice(self.arena.spawn_positions))
@@ -461,103 +510,145 @@ class Game:
     def incremenet_frame_count(self) -> None:
         self.frame_count += 1
 
-    def run(self, address: str = "127.0.0.1") -> None:
-        self.clock = pygame.Clock()
-        self.client.connect(address)
+    def draw_game(self, dt: float, keys):
+        self.screen.fill((128, 128, 128))
+        self.draw_and_update_tracks(dt)
+        self.draw_arena()
+
+        event_queue = self.client.event_queue.copy()
+        if event_queue:
+            event = event_queue.pop()
+            self.handle_event(event)
+            self.client.event_queue = event_queue
+        # We get them here every frame
+        # Might not need to
+        # Keep it for no until proven otherwise
+        tile_collisions = [
+            pygame.Rect(
+                tile.position[0], tile.position[1], tile.width, tile.height)
+            for tile in self.arena.get_colliders()
+        ]
+
+        self.client.send_position(
+            self.player.position.x, self.player.position.y,
+            self.player.rotation, self.player.barrel_rotation
+        )
+
+        if self.player.alive:
+            mouse = pygame.mouse.get_pressed()
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
+            mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
+            direction_vector = pygame.Vector2(
+                mouse_x, mouse_y) - self.player.position
+            direction_vector = direction_vector.normalize()
+
+            angle = math.atan2(-direction_vector[1], direction_vector[0])
+            degrees = math.degrees(angle)
+            self.player.barrel_rotation = (degrees + 360) % 360
+
+            if mouse[0] and not self.shoot_cooldown:
+                self.shoot(
+                    (direction_vector.x, direction_vector.y), ProjectileType.LASER)
+                self.shoot_cooldown = self.SHOOT_COOLDOWN
+                HIT_SOUND.play()
+
+            if mouse[2] and not self.shoot_cooldown:
+                self.shoot((direction_vector.x, direction_vector.y),
+                           ProjectileType.BULLET)
+                self.shoot_cooldown = self.SHOOT_COOLDOWN
+                HIT_SOUND.play()
+
+            if not self.frame_count % TRACK_INTERVAL:
+                self.tracks.append(
+                    Track(self.player.position.copy(), self.player.rotation))
+            self.player.handle_input(keys, tile_collisions, dt)
+
+        self.player.draw(self.screen)
+
+        for id, player in self.client.players.items():
+            self.draw_player(
+                player, self.frame_count) if id != self.client.id else ...
+
+
+        cleanup = []
+        for part in self.particles:
+            part.update(dt)
+            part.draw(self.screen)
+            if part.lifetime == 0:
+                cleanup.append(part)
+
+        for part in cleanup:
+            self.particles.remove(part)
+
+        for projectile in self.client.projectiles:
+            self.update_projectile(projectile, tile_collisions, dt)
+            self.draw_projectile(
+                projectile.position, projectile.rotation, projectile.projectile_type)
+
+        self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
+
+        pygame.transform.scale(
+            self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
+
+        self.ui.draw(list(self.client.players.values()),
+                     self.client.lifecycle_state,
+                     self.client.lifecycle_context,
+                     self
+                     )
+
+    def draw_widgets(self):
+        mouse = pygame.mouse.get_pressed()
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        for widget in self.widgets:
+            if mouse[0]:
+                if check_collision((mouse_x, mouse_y, 1, 1), (widget.position.x, widget.position.y, widget.width, widget.height)):
+                    widget.on_click(self)
+
+            self.display.blit(widget.surf, widget.position)
+
+    def draw_main_menu(self, dt, keys) -> None:
+        self.display.fill((200, 200, 200))
+
+        self.draw_widgets()
+
+    def draw_join_game_screen(self, dt, keys) -> None:
+        self.display.fill((200, 200, 200))
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    self.start_playing()
+                if event.key == pygame.K_BACKSPACE:
+                    self.address = self.address[:-1]
+                else:
+                    self.address += event.unicode
+
+        self.widgets[0] = Widget(pygame.Vector2(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2), game.ui.new_room_font.render(self.address, True, (255,255,255)), WidgetType.NONE)
+        self.draw_widgets()
+
+    def start_playing(self) -> None:
+        if self.state == GameState.PLAYING:
+            raise ValueError("already playing")
+
+        self.state = GameState.PLAYING
         self.client.start()
+        self.client.connect(self.address)
+
+    def run(self) -> None:
+        self.clock = pygame.Clock()
         self.running = True
 
         while self.running:
             dt = self.clock.tick(120) / 1000
+            keys = pygame.key.get_pressed()
             self.frame_count += 1
             self.incremenet_frame_count()
-            self.screen.fill((128, 128, 128))
-            self.draw_and_update_tracks(dt)
-            self.draw_arena()
-
-            event_queue = self.client.event_queue.copy()
-            if event_queue:
-                event = event_queue.pop()
-                self.handle_event(event)
-                self.client.event_queue = event_queue
-            # We get them here every frame
-            # Might not need to
-            # Keep it for no until proven otherwise
-            tile_collisions = [
-                pygame.Rect(
-                    tile.position[0], tile.position[1], tile.width, tile.height)
-                for tile in self.arena.get_colliders()
-            ]
-
-            self.client.send_position(
-                self.player.position.x, self.player.position.y,
-                self.player.rotation, self.player.barrel_rotation
-            )
-
-            keys = pygame.key.get_pressed()
-
-            if self.player.alive:
-                mouse = pygame.mouse.get_pressed()
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
-                mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
-                direction_vector = pygame.Vector2(
-                    mouse_x, mouse_y) - self.player.position
-                direction_vector = direction_vector.normalize()
-
-                angle = math.atan2(-direction_vector[1], direction_vector[0])
-                degrees = math.degrees(angle)
-                self.player.barrel_rotation = (degrees + 360) % 360
-
-                if mouse[0] and not self.shoot_cooldown:
-                    self.shoot(
-                        (direction_vector.x, direction_vector.y), ProjectileType.LASER)
-                    self.shoot_cooldown = self.SHOOT_COOLDOWN
-                    HIT_SOUND.play()
-
-                if mouse[2] and not self.shoot_cooldown:
-                    self.shoot((direction_vector.x, direction_vector.y),
-                               ProjectileType.BULLET)
-                    self.shoot_cooldown = self.SHOOT_COOLDOWN
-                    HIT_SOUND.play()
-
-                if not self.frame_count % TRACK_INTERVAL:
-                    self.tracks.append(
-                        Track(self.player.position.copy(), self.player.rotation))
-                self.player.handle_input(keys, tile_collisions, dt)
-
-            self.player.draw(self.screen)
-
-            for id, player in self.client.players.items():
-                self.draw_player(
-                    player, self.frame_count) if id != self.client.id else ...
-
-
-            cleanup = []
-            for part in self.particles:
-                part.update(dt)
-                part.draw(self.screen)
-                if part.lifetime == 0:
-                    cleanup.append(part)
-
-            for part in cleanup:
-                self.particles.remove(part)
-
-            for projectile in self.client.projectiles:
-                self.update_projectile(projectile, tile_collisions, dt)
-                self.draw_projectile(
-                    projectile.position, projectile.rotation, projectile.projectile_type)
-
-            self.shoot_cooldown = max(0, self.shoot_cooldown - dt / 10)
-
-            pygame.transform.scale(
-                self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
-
-            self.ui.draw(list(self.client.players.values()),
-                         self.client.lifecycle_state,
-                         self.client.lifecycle_context,
-                         self
-                         )
+            if self.state == GameState.PLAYING:
+                self.draw_game(dt, keys)
+            elif self.state == GameState.MAIN_MENU:
+                self.draw_main_menu(dt, keys)
+            elif self.state == GameState.JOIN_GAME:
+                self.draw_join_game_screen(dt, keys)
 
             pygame.display.flip()
             pygame.event.pump()  # process event queue
@@ -565,7 +656,8 @@ class Game:
             if keys[pygame.K_q]:
                 self.running = False
 
-        self.client.disconnect()
+        if self.client.connected:
+            self.client.disconnect()
         sys.exit()
 
 
@@ -580,6 +672,8 @@ if __name__ == "__main__":
         if len(sys.argv) < idx + 1:
             raise ValueError("missing argument to option --join")
 
-        game.run(sys.argv[idx + 1])
+        game.address = sys.argv[idx + 1]
+        game.start_playing()
+        game.run()
     else:
         game.run()

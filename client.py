@@ -51,6 +51,7 @@ class Client:
         self.id = 0
         self.running = False
         self.current_arena = 0
+        self.connected = False
 
         self.event_queue: list[Event] = []
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
@@ -79,6 +80,7 @@ class Client:
         self._send(packet.serialize())
 
     def connect(self, address: str) -> None:
+        self.connected = True
         self.address = address
         packet = Packet(PacketType.CONNECT,
                         self.sequence_number, b"connecting!")
