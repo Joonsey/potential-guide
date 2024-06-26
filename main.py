@@ -584,6 +584,7 @@ class Game:
             if keys[pygame.K_r] and not self.ready_interval and self.client.lifecycle_state in [LifecycleType.STARTING, LifecycleType.WAITING_ROOM]:
                 self.ready = not self.ready
                 self.client.send_ready(self.ready)
+                self.ready_interval = READY_INTERVAL
 
             if keys[pygame.K_F11]:
                 self.fullscreen = not self.fullscreen
