@@ -316,7 +316,7 @@ class Game:
 
     def draw_and_update_tracks(self, dt) -> None:
         tracks_to_cleanup = []
-        for i, track in enumerate(self.tracks):
+        for track in self.tracks:
             track_surf: pygame.Surface = self.asset_loader.sprite_sheets['track'][0].copy(
             )
             track_surf = pygame.transform.rotate(track_surf, -track.rotation)
@@ -326,10 +326,10 @@ class Game:
 
             track.lifetime = max(0, track.lifetime - dt)
             if not track.lifetime:
-                tracks_to_cleanup.append(i)
+                tracks_to_cleanup.append(track)
 
-        for i in tracks_to_cleanup:
-            self.tracks.pop(i)
+        for track in tracks_to_cleanup:
+            self.tracks.remove(track)
 
     def draw_player(self, player: ClientPlayer, frame_count: int) -> None:
         if player.old_position:

@@ -148,6 +148,9 @@ class Server:
                 remaining_players[0].score += 1
                 self.lifecycle_state = LifecycleType.NEW_ROUND
                 self.lifecycle_context = time.time() + ROUND_INTERVAL
+            if len(remaining_players) == 0:
+                self.lifecycle_state = LifecycleType.NEW_ROUND
+                self.lifecycle_context = time.time() + ROUND_INTERVAL
 
         elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING] and time.time() >= self.lifecycle_context:
             self.lifecycle_state = LifecycleType.PLAYING
