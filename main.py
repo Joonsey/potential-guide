@@ -149,9 +149,9 @@ class UI:
     def __init__(self, ui_screen: pygame.Surface, asset_loader: AssetLoader) -> None:
         self.ui_screen = ui_screen
         self.font_size = FONT_SIZE
-        self.font = pygame.font.Font(None, self.font_size)
-        self.new_room_font = pygame.font.Font(None, LARGE_FONT_SIZE)
         self.asset_loader = asset_loader
+        self.font = pygame.font.Font(None, self.font_size)
+        self.arena_font = asset_loader.fonts['arena-screen']
 
     def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: float, game: 'Game') -> None:
         position_map = [
@@ -177,10 +177,43 @@ class UI:
         #  TODO: this is not really 'UI' should be moved
         if lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
             now = time.time()
-            countdown = int(context - now)
-            text = self.new_room_font.render(f"{countdown}", True, (0, 0, 0))
+            countdown = context - now
+            text = self.arena_font.render(f"{countdown:.0f}", True, (0, 0, 0))
             rect = text.get_rect(topleft=(
                 DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 - text.get_height() // 2))
+
+            self.ui_screen.blit(text, rect)
+
+        #  TODO: this is not really 'UI' should be moved
+        elif lifecycle_state in [LifecycleType.DONE]:
+            # FIXME
+            player = int(game.client.lifecycle_context)
+            text = self.arena_font.render(f"Player {player} won!", True, (0, 0, 0))
+            rect = text.get_rect(topleft=(
+                DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 - text.get_height() // 2))
+
+            self.ui_screen.blit(text, rect)
+
+        #  TODO: this is not really 'UI' should be moved
+        if game.client.spectating:
+            rc_text = self.font.render(f"You are currently spectating you will join next round", True, (28, 28, 28))
+            rect = rc_text.get_rect(topleft=(
+                DISPLAY_WIDTH // 2 - rc_text.get_width() // 2, 10))
+
+            self.ui_screen.blit(rc_text, rect)
+
+
+        elif lifecycle_state in [LifecycleType.WAITING_ROOM]:
+            count_ready_players = len(list(filter(lambda x: x.ready, players)))
+            rc_text = self.arena_font.render(f"{count_ready_players}/{len(players)}", True, (0, 0, 0) if not game.ready else (120, 220, 120))
+            rect = rc_text.get_rect(topleft=(
+                DISPLAY_WIDTH // 2 - rc_text.get_width() // 2, DISPLAY_HEIGHT // 2 - rc_text.get_height() // 2))
+
+            self.ui_screen.blit(rc_text, rect)
+
+            text = self.font.render(f"[R] to {'un-ready' if game.ready else 'ready'}", True, (0, 0, 0, 120))
+            rect = text.get_rect(topleft=(
+                DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 + rc_text.get_height() // 2))
 
             self.ui_screen.blit(text, rect)
 

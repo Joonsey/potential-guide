@@ -1,9 +1,14 @@
 import os
 import pygame
 
+from settings import LARGE_FONT_SIZE
+
 class AssetLoader:
     def __init__(self, asset_dir: str ="assets"):
         self.asset_dir = asset_dir
+        self.fonts = {
+            'arena-screen': pygame.font.Font(os.path.join(self.asset_dir, "RubikMonoOne-Regular.ttf"), LARGE_FONT_SIZE)
+        }
         self.images = {}
         self.sounds = {}
         self.sprite_sheets = {
