@@ -15,15 +15,17 @@ class PacketType(IntEnum):
     HIT = auto()
     LIFECYCLE_CHANGE = auto()
     FORCE_MOVE = auto()
+    READY = auto()
 
 
 class PayloadFormat:
     CONNECT = struct.Struct("32s")
     DISCONNECT  = struct.Struct("I")
     ONBOARD = struct.Struct("I")
-    SCORE = struct.Struct("II")
+    SCORE = struct.Struct("I")
     COORDINATES = struct.Struct("Iffff")
-    UPDATE = struct.Struct("IffffI")  # combines SCORE and COORDINATES
+    READY = struct.Struct("?")
+    UPDATE = struct.Struct(COORDINATES.format + SCORE.format + READY.format)  # combines COORDINATES, SCORE and READY
     SHOOT = struct.Struct("IffffII")
     HIT = struct.Struct("II")
     LIFECYCLE_CHANGE = struct.Struct("Id")  # LifecycleType, context

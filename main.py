@@ -13,7 +13,7 @@ from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
 from particles import Particle, Ripple, Spark
 from settings import (
-    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, READY_INTERVAL, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, is_within_radius, lerp, outline, render_stack
 
@@ -221,6 +221,7 @@ class Game:
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
         tank_broken_sprites = self.asset_loader.sprite_sheets['tank-broken']
 
+        self.ready = False
         self.player = Player(
             tank_sprites, tank_barrel_sprites, tank_broken_sprites)
         self.ui = UI(self.display, self.asset_loader)
@@ -494,6 +495,7 @@ class Game:
         self.client.connect(address)
         self.client.start()
         self.running = True
+        self.ready_interval = READY_INTERVAL
 
         while self.running:
             dt = self.clock.tick(120) / 1000
@@ -524,6 +526,12 @@ class Game:
             )
 
             keys = pygame.key.get_pressed()
+
+            self.ready_interval = max(0, self.ready_interval - dt)
+            if keys[pygame.K_r] and not self.ready_interval and self.client.lifecycle_state in [LifecycleType.STARTING, LifecycleType.WAITING_ROOM]:
+                self.ready = not self.ready
+                self.client.send_ready(self.ready)
+                self.ready_interval = READY_INTERVAL
 
             if self.player.alive:
                 mouse = pygame.mouse.get_pressed()

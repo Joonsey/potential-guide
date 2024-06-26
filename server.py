@@ -29,6 +29,7 @@ class Connection:
         self.name = ""
         self.score = 0
         self.alive = True
+        self.ready = False
 
 
 class Server:
@@ -144,11 +145,11 @@ class Server:
 
     def update_lifecycle(self) -> None:
         if self.lifecycle_state == LifecycleType.WAITING_ROOM:
-            if len(self.connections) in [2, 4]:
+            if all(p.ready for p in self.connections.copy().values()):
                 self.lifecycle_state = LifecycleType.STARTING
                 self.lifecycle_context = time.time() + WAITING_TIME
 
-        elif len(self.connections) < 2:
+        elif not all(p.ready for p in self.connections.copy().values()):
             self.lifecycle_state = LifecycleType.WAITING_ROOM
             self.lifecycle_context = len(self.connections)
             self.current_arena = 0
@@ -248,7 +249,8 @@ class Server:
                     item.position[1],
                     item.rotation,
                     item.barrel_rotation,
-                    item.score
+                    item.score,
+                    item.ready
                 )
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)
@@ -306,6 +308,10 @@ class Server:
             del self.connections[addr]
             packet.payload = PayloadFormat.DISCONNECT.pack(player_id)
             self.broadcast(packet)
+
+        if packet.packet_type == PacketType.READY:
+            ready, = PayloadFormat.READY.unpack(packet.payload)
+            self.connections[addr].ready = ready
 
         if packet.packet_type == PacketType.SHOOT:
             _, x_pos, y_pos, x_vel, y_vel, projectile_type, _ = PayloadFormat.SHOOT.unpack(
