@@ -82,6 +82,8 @@ class Player:
 
         damping_factor = 0.1  # Adjust this value between 0 and 1 for different damping rates
         self.knockback *= damping_factor ** dt
+        if self.knockback.length() < 20:
+            self.knockback = pygame.Vector2(0,0)
         self.position.x -= self.knockback.x * dt
         self.position.x += self.velocity.x
 
