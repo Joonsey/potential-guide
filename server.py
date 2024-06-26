@@ -10,7 +10,10 @@ from arena import Arena, Tile
 from packet import Packet, PacketType, PayloadFormat
 from settings import (
     BUFF_SIZE,
+    DECISIVE_SCORE,
+    GAME_INTERVAL,
     ROUND_INTERVAL,
+    WAITING_ROOM_ID,
     WAITING_TIME,
 )
 from shared import LifecycleType, Projectile, check_collision
@@ -42,11 +45,12 @@ class Server:
         self._projectile_index = 0
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
         self.lifecycle_context = 0
+        self.round_index = 0
 
         self._current_arena = 0
         self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
         self.tile_collisions = []
-        self.current_arena = 0
+        self.current_arena = WAITING_ROOM_ID
 
 
     @property
@@ -152,21 +156,7 @@ class Server:
         elif not all(p.ready for p in self.connections.copy().values()):
             self.lifecycle_state = LifecycleType.WAITING_ROOM
             self.lifecycle_context = len(self.connections)
-            self.current_arena = 0
-            i = 0
-            for addr, player in self.connections.items():
-                new_pos = self.arena.spawn_positions[i]
-                i += 1
-
-                packet = Packet(
-                    PacketType.FORCE_MOVE, 0,
-                    PayloadFormat.COORDINATES.pack(
-                        player.id, *new_pos, 0, 0
-                    ))
-
-                player.position = new_pos
-
-                self._send_packet(packet, addr)
+            self.current_arena = WAITING_ROOM_ID
 
         elif self.lifecycle_state == LifecycleType.PLAYING:
             remaining_players = list(
@@ -175,9 +165,25 @@ class Server:
                 remaining_players[0].score += 1
                 self.lifecycle_state = LifecycleType.NEW_ROUND
                 self.lifecycle_context = time.time() + ROUND_INTERVAL
+                self.round_index += 1
             if len(remaining_players) == 0:
                 self.lifecycle_state = LifecycleType.NEW_ROUND
                 self.lifecycle_context = time.time() + ROUND_INTERVAL
+                self.round_index = 0
+                return
+
+            for player in self.connections.copy().values():
+                if player.score >= DECISIVE_SCORE:
+                    self.current_arena = WAITING_ROOM_ID
+                    self.round_index = 0
+                    self.lifecycle_state = LifecycleType.DONE
+                    self.new_game_time = time.time() + GAME_INTERVAL
+                    self.lifecycle_context = player.id
+
+        elif self.lifecycle_state == LifecycleType.DONE and time.time() >= self.new_game_time:
+            self.lifecycle_state = LifecycleType.WAITING_ROOM
+            self.lifecycle_context = len(self.connections)
+            self.round_index = 0
 
         elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
             if time.time() >= self.lifecycle_context:
@@ -192,7 +198,7 @@ class Server:
             packet = Packet(PacketType.LIFECYCLE_CHANGE, 0, PayloadFormat.LIFECYCLE_CHANGE.pack(
                 self.lifecycle_state, self.lifecycle_context))
             self.broadcast(packet)
-            if self.lifecycle_state in [LifecycleType.PLAYING]:
+            if self.lifecycle_state in [LifecycleType.PLAYING, LifecycleType.DONE]:
                 self.reset()
                 i = 0
                 for addr, player in self.connections.items():

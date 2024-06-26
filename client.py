@@ -5,7 +5,7 @@ import logging
 import threading
 
 from packet import Packet, PacketType, PayloadFormat
-from settings import BUFF_SIZE
+from settings import BUFF_SIZE, WAITING_ROOM_ID
 from shared import LifecycleType, Projectile, ProjectileType
 
 
@@ -126,9 +126,12 @@ class Client:
         self.lifecycle_context = context
 
         if state == LifecycleType.WAITING_ROOM:
-            self.current_arena = 0
+            self.current_arena = WAITING_ROOM_ID
 
         if state == LifecycleType.NEW_ROUND:
+            ...
+
+        if state == LifecycleType.DONE:
             ...
 
         if state in [LifecycleType.PLAYING]:
