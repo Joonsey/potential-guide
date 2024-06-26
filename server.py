@@ -252,7 +252,8 @@ class Server:
                     self.send_hit(proj.id, player.id)
 
         for proj_id in projs_hit:
-            del self.projectiles[proj_id]
+            if proj_id in self.projectiles.keys():
+                del self.projectiles[proj_id]
 
     def broadcast_for_spectators(self, packet: Packet):
         for _, addr in self.spectators:
