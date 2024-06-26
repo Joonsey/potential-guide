@@ -18,7 +18,7 @@ from settings import (
     WAITING_ROOM_ID,
     WAITING_TIME,
 )
-from shared import LifecycleType, OnboardType, Projectile, check_collision, get_distance
+from shared import LifecycleType, OnboardType, Projectile, ProjectileType, check_collision, get_distance
 
 
 LOGGER = logging.getLogger("Server")
@@ -122,6 +122,9 @@ class Server:
                 hit_pos = Projectile.update_lobbed_projectile(proj, dt)
                 if hit_pos:
                     self.check_interactive_projectiles(proj, interactable_tiles_list)
+
+                    if not proj.hurts:
+                        continue
 
                     for player in list(filter(lambda x: x.alive, self.connections.values())):
                         if player.id == proj.sender_id and proj.grace_period:

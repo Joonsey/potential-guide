@@ -39,6 +39,7 @@ class Projectile:
         self.projectile_type = projectile_type
         self.rotation = 0
         self.lobbed = False
+        self.hurts = True
         self.radius = 0
         self.remaining_bounces = 1
 
@@ -50,6 +51,9 @@ class Projectile:
             case ProjectileType.SHOCKWAVE:
                 self.speed = self.SPEED * 2
                 self.cooldown = .15
+                self.lobbed = True
+                self.radius = 64
+                self.hurts = False
             case ProjectileType.SNIPER:
                 self.speed = self.SPEED * 3
                 self.remaining_bounces = 4
@@ -79,6 +83,10 @@ class Projectile:
     @staticmethod
     def get_cooldown(projectile_type: ProjectileType) -> float:
         return Projectile(projectile_type).cooldown
+
+    @staticmethod
+    def is_lobbed(projectile_type: ProjectileType) -> bool:
+        return Projectile(projectile_type).lobbed
 
     @staticmethod
     def update_lobbed_projectile(projectile: Projectile, dt: float) -> None | pygame.Vector2:

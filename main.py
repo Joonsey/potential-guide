@@ -488,7 +488,7 @@ class Game:
             self.particles.append(Spark(spark_pos.copy(), angle + (i / 3), (255, 255, 255), scale=.35, force=.15))
 
         pos = self.player.position
-        if target and projectile_type in [ProjectileType.CLUSTER]:
+        if target and Projectile.is_lobbed(projectile_type):
             self.client.send_shoot((pos.x, pos.y), target, projectile_type)
         else:
             self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
@@ -628,48 +628,15 @@ class Game:
                         projectile.remaining_bounces = 0
                         self.check_projectile_interaction(projectile, interactable_tiles)
                         pos = pygame.Vector2(projectile.position)
-                        r = Ripple(pos.copy(), 20, force=1.5,
-                                   color=pygame.Color(255, 255, 255), width=1)
-                        r.lifetime = RIPPLE_LIFETIME * 1.3
-                        self.particles.append(r)
-                        self.particles.append(Ripple(pos.copy(), 25))
 
-                        r = Ripple(pos.copy(), 20, force=1.5,
-                                   color=pygame.Color(255, 189, 189), width=2)
-                        r.lifetime = RIPPLE_LIFETIME * .7
-                        self.particles.append(r)
-                        self.particles.append(Ripple(pos.copy(), 25))
-
-                        for i in range(7):
-                            self.particles.append(Spark(pos.copy(), i, (255, 255, 255), 2, force=.9))
-                            self.particles.append(Spark(pos.copy(), i + .5, (191, 80, 50), 1))
-
-                        for i in range(6):
-                            self.particles.append(
-                                Spark(pos.copy(), i + .5, (0, 0, 0), 1, force=.3))
-
-                        for i in range(6):
-                            self.particles.append(
-                                Spark(pos.copy(), i, (255, 255, 255), 1, force=.2))
-                    self.draw_lobbed_projectile(projectile)
-
-                else:
-                    self.check_projectile_interaction(projectile, interactable_tiles)
-                    hit_pos = Projectile.update_projectile(projectile, tile_collisions, dt)
-                    if hit_pos is not None:
-                        new_pos_x, new_pos_y = hit_pos
-                        vel_x, vel_y = projectile.velocity
-                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
-                            vel_y + .20, vel_x + .20), (255, 255, 255, 120), .2, force=.12))
-                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
-                            vel_y - .20, vel_x - .20), (255, 255, 255, 120), .2, force=.12))
 
                         if projectile.projectile_type == ProjectileType.SHOCKWAVE:
+                            new_pos_x, new_pos_y = pos
                             #player_center_pos = self.player.position.x - 8, self.player.position.y - 8
                             player_center_pos = self.player.position.x, self.player.position.y
                             distance = player_center_pos[0] - new_pos_x, player_center_pos[1] - new_pos_y
 
-                            radius = 20
+                            radius = projectile.radius
                             if is_within_radius(player_center_pos, (new_pos_x, new_pos_y), radius*2):
                                 self.player.knockback = -pygame.Vector2(distance).normalize() * SHOCKWAVE_KNOCKBACK
 
@@ -683,6 +650,42 @@ class Game:
 
                             for i in range(0, 6):
                                 self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), i, (255, 255, 255, 120), .2, force=.12))
+                        else:
+                            r = Ripple(pos.copy(), 20, force=1.5,
+                                       color=pygame.Color(255, 255, 255), width=1)
+                            r.lifetime = RIPPLE_LIFETIME * 1.3
+                            self.particles.append(r)
+                            self.particles.append(Ripple(pos.copy(), 25))
+
+                            r = Ripple(pos.copy(), 20, force=1.5,
+                                       color=pygame.Color(255, 189, 189), width=2)
+                            r.lifetime = RIPPLE_LIFETIME * .7
+                            self.particles.append(r)
+                            self.particles.append(Ripple(pos.copy(), 25))
+
+                            for i in range(7):
+                                self.particles.append(Spark(pos.copy(), i, (255, 255, 255), 2, force=.9))
+                                self.particles.append(Spark(pos.copy(), i + .5, (191, 80, 50), 1))
+
+                            for i in range(6):
+                                self.particles.append(
+                                    Spark(pos.copy(), i + .5, (0, 0, 0), 1, force=.3))
+
+                            for i in range(6):
+                                self.particles.append(
+                                    Spark(pos.copy(), i, (255, 255, 255), 1, force=.2))
+                    self.draw_lobbed_projectile(projectile)
+
+                else:
+                    self.check_projectile_interaction(projectile, interactable_tiles)
+                    hit_pos = Projectile.update_projectile(projectile, tile_collisions, dt)
+                    if hit_pos is not None:
+                        new_pos_x, new_pos_y = hit_pos
+                        vel_x, vel_y = projectile.velocity
+                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
+                            vel_y + .20, vel_x + .20), (255, 255, 255, 120), .2, force=.12))
+                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
+                            vel_y - .20, vel_x - .20), (255, 255, 255, 120), .2, force=.12))
 
                     self.draw_projectile(self.screen, projectile.position, projectile.rotation, projectile.projectile_type)
 
