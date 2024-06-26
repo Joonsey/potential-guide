@@ -15,7 +15,7 @@ from particles import Particle, Ripple, Spark
 from settings import (
     ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, READY_INTERVAL, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
-from shared import LifecycleType, ProjectileType, is_within_radius, lerp, outline, render_stack
+from shared import LifecycleType, ProjectileType, gaussian_value, get_distance, is_within_radius, lerp, outline, render_stack
 
 pygame.mixer.init()
 
@@ -163,6 +163,8 @@ class UI:
             ProjectileType.LASER: self.asset_loader.sprite_sheets['bullet-lazer'][4].copy(),
             ProjectileType.BULLET: self.asset_loader.sprite_sheets['bullet'][4].copy(),
             ProjectileType.SHOCKWAVE: self.asset_loader.sprite_sheets['bullet-shockwave'][4].copy(),
+            ProjectileType.SNIPER: self.asset_loader.sprite_sheets['bullet-sniper'][4].copy(),
+            ProjectileType.CLUSTER: self.asset_loader.sprite_sheets['bullet-cluster'][4].copy(),
         }
         for i, player in enumerate(players[:2]):
             player_text = self.font.render(
@@ -388,6 +390,12 @@ class Game:
                 surf = self.asset_loader.sprite_sheets['bullet-lazer']
             case ProjectileType.SHOCKWAVE:
                 surf = self.asset_loader.sprite_sheets['bullet-shockwave']
+            case ProjectileType.SNIPER:
+                surf = self.asset_loader.sprite_sheets['bullet-sniper']
+            case ProjectileType.BULLET:
+                surf = self.asset_loader.sprite_sheets['bullet']
+            case ProjectileType.CLUSTER:
+                surf = self.asset_loader.sprite_sheets['bullet-cluster']
             case _:
                 surf = self.asset_loader.sprite_sheets['bullet']
 
@@ -398,21 +406,10 @@ class Game:
             int(rotation)
         )
 
-    def update_projectile(self, projectile: Projectile, collision_list: list[pygame.Rect], interactable_tiles_list: list[Tile], dt: float) -> None:
-        x, y = projectile.position
-        vel_x, vel_y = projectile.velocity
-
-        # Calculate new potential position
-        new_pos_x = x + vel_x * dt * projectile.speed
-        new_pos_y = y + vel_y * dt * projectile.speed
-        colided = False
-
-        # Check for vertical collisions
-
+    def check_projectile_interaction(self, projectile: Projectile, interactable_tiles_list: list[Tile]) -> None:
         for tile in interactable_tiles_list:
             if (pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
-                    .colliderect(pygame.Rect(new_pos_x, new_pos_y, 8, 8))):
-                colided = True
+                    .colliderect(pygame.Rect(projectile.position[0], projectile.position[1], 8, 8))):
                 projectile.remaining_bounces = 0
                 if projectile.sender_id == self.client.id:
                     try:
@@ -420,57 +417,6 @@ class Game:
                     except:
                         id = 0
                     self.player.bullets[id] = ProjectileType(int(tile.tile_type))
-
-
-        if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
-            colided = True
-            # Reflect the velocity on the y-axis
-            vel_y = -vel_y
-            # Set new position with reflected velocity
-            new_pos_y = y + vel_y * dt * Projectile.SPEED
-
-        # Check for horizontal collisions
-        if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
-            colided = True
-            # Reflect the velocity on the x-axis
-            vel_x = -vel_x
-            # Set new position with reflected velocity
-            new_pos_x = x + vel_x * dt * Projectile.SPEED
-
-        if colided:
-            self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
-                vel_y + .20, vel_x + .20), (255, 255, 255, 120), .2, force=.12))
-            self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
-                vel_y - .20, vel_x - .20), (255, 255, 255, 120), .2, force=.12))
-            if projectile.remaining_bounces == 0:
-                self.client.projectiles.remove(projectile)
-
-                if projectile.projectile_type != ProjectileType.SHOCKWAVE:
-                    return
-
-                #player_center_pos = self.player.position.x - 8, self.player.position.y - 8
-                player_center_pos = self.player.position.x, self.player.position.y
-                distance = player_center_pos[0] - new_pos_x, player_center_pos[1] - new_pos_y
-
-                radius = 20
-                if is_within_radius(player_center_pos, (new_pos_x, new_pos_y), radius*2):
-                    self.player.knockback = -pygame.Vector2(distance).normalize() * SHOCKWAVE_KNOCKBACK
-
-                r = Ripple(pygame.Vector2(new_pos_x, new_pos_y), radius, color=pygame.Color(178,178,255,255), width=4)
-                r.lifetime *= .8
-                self.particles.append(r)
-
-                r = Ripple(pygame.Vector2(new_pos_x, new_pos_y), radius, color=pygame.Color(255,255,255,255), width=1, force=1.2)
-                r.lifetime *= 1
-                self.particles.append(r)
-
-                for i in range(0, 6):
-                    self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), i, (255, 255, 255, 120), .2, force=.12))
-
-            projectile.remaining_bounces -= 1
-
-        projectile.position = (new_pos_x, new_pos_y)
-        projectile.velocity = (vel_x, vel_y)
 
     def handle_event(self, event: Event) -> None:
         # FIXME breaking index error
@@ -531,7 +477,7 @@ class Game:
                 # do something to celebrate a win
                 print("you won!")
 
-    def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType) -> None:
+    def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType, target: tuple[float, float] | None = None) -> None:
         spark_pos = self.player.position.copy()
         spark_pos += pygame.Vector2(velocity[0], velocity[1]) * 8
         angle = math.atan2(velocity[1], velocity[0])
@@ -540,8 +486,36 @@ class Game:
 
         for i in range(2):
             self.particles.append(Spark(spark_pos.copy(), angle + (i / 3), (255, 255, 255), scale=.35, force=.15))
+
         pos = self.player.position
-        self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
+        if target and projectile_type in [ProjectileType.CLUSTER]:
+            self.client.send_shoot((pos.x, pos.y), target, projectile_type)
+        else:
+            self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
+
+    def draw_lobbed_projectile(self, projectile: Projectile) -> None:
+        start_pos = projectile.start_position
+        target_pos = projectile.velocity  # to simplify sockets we interchange velocity with target if lobbed
+
+        max_distance = get_distance(projectile.start_position, target_pos)
+        distance_from_start = get_distance(projectile.position, start_pos)
+        # Calculate value based on linear curve
+        half_distance = max_distance / 2
+        if distance_from_start <= half_distance:
+            # Increasing part of the curve (quadratic)
+            height = 1 - ((half_distance - distance_from_start) / half_distance)**2
+        else:
+            # Decreasing part of the curve (quadratic)
+            height  = 1 - ((distance_from_start - half_distance) / half_distance)**2
+
+        draw_pos = projectile.position[0], projectile.position[1] - height * 32
+
+        reticle_size = 16
+        pygame.draw.ellipse(self.screen, (200, 0, 0), (target_pos[0] - reticle_size / 2, target_pos[1] - reticle_size / 2, reticle_size, reticle_size), width=2)
+
+        pygame.draw.ellipse(self.screen, PLAYER_SHADOW_COLOR, (*projectile.position, 8, 8))
+        self.draw_projectile(self.screen, draw_pos, 0, projectile.projectile_type)
+
 
     def incremenet_frame_count(self) -> None:
         self.frame_count += 1
@@ -613,14 +587,13 @@ class Game:
                 self.player.barrel_rotation = (degrees + 360) % 360
 
                 if mouse[0] and not self.shoot_cooldown[0]:
-                    self.shoot(
-                        (direction_vector.x, direction_vector.y), self.player.bullets[0])
+                    self.shoot((direction_vector.x, direction_vector.y), self.player.bullets[0], target = (mouse_x, mouse_y))
                     self.shoot_cooldown[0] = Projectile.get_cooldown(
                         self.player.bullets[0])
                     HIT_SOUND.play()
 
                 if mouse[2] and not self.shoot_cooldown[1]:
-                    self.shoot((direction_vector.x, direction_vector.y), self.player.bullets[1])
+                    self.shoot((direction_vector.x, direction_vector.y), self.player.bullets[1], target = (mouse_x, mouse_y))
                     self.shoot_cooldown[1] = Projectile.get_cooldown(
                         self.player.bullets[1])
                     HIT_SOUND.play()
@@ -647,10 +620,78 @@ class Game:
             for part in cleanup:
                 self.particles.remove(part)
 
+            projs_to_cleanup = []
             for projectile in self.client.projectiles:
-                self.update_projectile(projectile, tile_collisions, interactable_tiles, dt)
-                self.draw_projectile(
-                    self.screen, projectile.position, projectile.rotation, projectile.projectile_type)
+                self.check_projectile_interaction(projectile, interactable_tiles)
+                if projectile.lobbed:
+                    hit_pos = Projectile.update_lobbed_projectile(projectile, dt)
+                    if hit_pos:
+                        projectile.remaining_bounces = 0
+                        self.check_projectile_interaction(projectile, interactable_tiles)
+                        pos = pygame.Vector2(projectile.position)
+                        r = Ripple(pos.copy(), 20, force=1.5,
+                                   color=pygame.Color(255, 255, 255), width=1)
+                        r.lifetime = RIPPLE_LIFETIME * 1.3
+                        self.particles.append(r)
+                        self.particles.append(Ripple(pos.copy(), 25))
+
+                        r = Ripple(pos.copy(), 20, force=1.5,
+                                   color=pygame.Color(255, 189, 189), width=2)
+                        r.lifetime = RIPPLE_LIFETIME * .7
+                        self.particles.append(r)
+                        self.particles.append(Ripple(pos.copy(), 25))
+
+                        for i in range(7):
+                            self.particles.append(Spark(pos.copy(), i, (255, 255, 255), 2, force=.9))
+                            self.particles.append(Spark(pos.copy(), i + .5, (191, 80, 50), 1))
+
+                        for i in range(6):
+                            self.particles.append(
+                                Spark(pos.copy(), i + .5, (0, 0, 0), 1, force=.3))
+
+                        for i in range(6):
+                            self.particles.append(
+                                Spark(pos.copy(), i, (255, 255, 255), 1, force=.2))
+                    self.draw_lobbed_projectile(projectile)
+
+                else:
+                    hit_pos = Projectile.update_projectile(projectile, tile_collisions, dt)
+                    if hit_pos is not None:
+                        new_pos_x, new_pos_y = hit_pos
+                        vel_x, vel_y = projectile.velocity
+                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
+                            vel_y + .20, vel_x + .20), (255, 255, 255, 120), .2, force=.12))
+                        self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), math.atan2(
+                            vel_y - .20, vel_x - .20), (255, 255, 255, 120), .2, force=.12))
+
+                        if projectile.projectile_type == ProjectileType.SHOCKWAVE:
+                            #player_center_pos = self.player.position.x - 8, self.player.position.y - 8
+                            player_center_pos = self.player.position.x, self.player.position.y
+                            distance = player_center_pos[0] - new_pos_x, player_center_pos[1] - new_pos_y
+
+                            radius = 20
+                            if is_within_radius(player_center_pos, (new_pos_x, new_pos_y), radius*2):
+                                self.player.knockback = -pygame.Vector2(distance).normalize() * SHOCKWAVE_KNOCKBACK
+
+                            r = Ripple(pygame.Vector2(new_pos_x, new_pos_y), radius, color=pygame.Color(178,178,255,255), width=4)
+                            r.lifetime *= .8
+                            self.particles.append(r)
+
+                            r = Ripple(pygame.Vector2(new_pos_x, new_pos_y), radius, color=pygame.Color(255,255,255,255), width=1, force=1.2)
+                            r.lifetime *= 1
+                            self.particles.append(r)
+
+                            for i in range(0, 6):
+                                self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), i, (255, 255, 255, 120), .2, force=.12))
+
+                    self.draw_projectile(self.screen, projectile.position, projectile.rotation, projectile.projectile_type)
+
+                if projectile.remaining_bounces == 0:
+                    projs_to_cleanup.append(projectile)
+
+            for projectile in projs_to_cleanup:
+                if projectile in self.client.projectiles:
+                    self.client.projectiles.remove(projectile)
 
             self.shoot_cooldown[0] = max(0, self.shoot_cooldown[0] - dt / 10)
             self.shoot_cooldown[1] = max(0, self.shoot_cooldown[1] - dt / 10)
@@ -670,11 +711,6 @@ class Game:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-
-                elif event.type == pygame.VIDEORESIZE:
-                    self.display_resolution = event.size
-                    self.display = pygame.display.set_mode(self.display_resolution, pygame.NOFRAME)
-
 
             if keys[pygame.K_q]:
                 self.running = False

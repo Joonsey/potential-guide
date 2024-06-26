@@ -1,3 +1,4 @@
+import math
 import os
 import socket
 import threading
@@ -17,7 +18,7 @@ from settings import (
     WAITING_ROOM_ID,
     WAITING_TIME,
 )
-from shared import LifecycleType, OnboardType, Projectile, check_collision
+from shared import LifecycleType, OnboardType, Projectile, check_collision, get_distance
 
 
 LOGGER = logging.getLogger("Server")
@@ -105,51 +106,39 @@ class Server:
                         ))
         self.broadcast(packet)
 
+    def check_interactive_projectiles(self, projectile: Projectile, interactable_tiles_list: list[Tile]) -> None:
+        new_pos_x, new_pos_y = projectile.position
+        for tile in interactable_tiles_list:
+            if (pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                    .colliderect(pygame.Rect(new_pos_x, new_pos_y, 8, 8))):
+                projectile.remaining_bounces = 0
+
     def update_projectiles(self, collision_list: list[pygame.Rect], interactable_tiles_list: list[Tile], dt: float) -> None:
         temp_proj = self.projectiles.copy()
         keys_to_remove = []
         for proj_id, proj in temp_proj.items():
             proj.grace_period = max(0, proj.grace_period - dt)
-            x, y = proj.position
-            vel_x, vel_y = proj.velocity
-            colided = False
+            self.check_interactive_projectiles(proj, interactable_tiles_list)
 
-            # Calculate new potential position
-            new_pos_x = x + vel_x * dt * proj.speed
-            new_pos_y = y + vel_y * dt * proj.speed
+            if proj.lobbed:
+                hit_pos = Projectile.update_lobbed_projectile(proj, dt)
+                if hit_pos:
+                    for player in list(filter(lambda x: x.alive, self.connections.values())):
+                        if player.id == proj.sender_id and proj.grace_period:
+                            # if sender is owner, and there is grace period left we skip
+                            continue
 
-            for tile in interactable_tiles_list:
-                if (pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
-                        .colliderect(pygame.Rect(new_pos_x, new_pos_y, 8, 8))):
-                    colided = True
-                    proj.remaining_bounces = 0
+                        player_center_pos = player.position[0] - 16, player.position[1] - 16
+                        distance = get_distance(player_center_pos, proj.position)
 
-            # Check for vertical collisions
-            if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
-                colided = True
+                        if distance < proj.radius:
+                            player.alive = self.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
+                            self.send_hit(proj.id, player.id)
+            else:
+                Projectile.update_projectile(proj, collision_list, dt)
 
-                # Reflect the velocity on the y-axis
-                vel_y = -vel_y
-                # Set new position with reflected velocity
-                new_pos_y = y + vel_y * dt * Projectile.SPEED
-
-            # Check for horizontal collisions
-            if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
-                colided = True
-                # Reflect the velocity on the x-axis
-                vel_x = -vel_x
-                # Set new position with reflected velocity
-                new_pos_x = x + vel_x * dt * Projectile.SPEED
-
-            # Update the projectile's position and velocity
-            if colided:
-                if proj.remaining_bounces == 0:
-                    keys_to_remove.append(proj_id)
-                    continue
-                proj.remaining_bounces -= 1
-
-            proj.position = (new_pos_x, new_pos_y)
-            proj.velocity = (vel_x, vel_y)
+            if proj.remaining_bounces == 0:
+                keys_to_remove.append(proj_id)
 
         for key in keys_to_remove:
             del temp_proj[key]
@@ -240,7 +229,7 @@ class Server:
     def check_tank_hit(self) -> None:
         projs_hit = []
 
-        for proj in self.projectiles.values():
+        for proj in list(filter(lambda x: not x.lobbed, self.projectiles.values())):
             proj_rect = (proj.position[0], proj.position[1], 8, 8)
             for player in list(filter(lambda x: x.alive, self.connections.values())):
                 if player.id == proj.sender_id and proj.grace_period:

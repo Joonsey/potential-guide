@@ -214,6 +214,7 @@ class Client:
             proj = Projectile(projectile_type)
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
+            proj.start_position = (x_pos, y_pos)
             proj.id = id
             proj.sender_id = sender_id
             self.projectiles.append(proj)
