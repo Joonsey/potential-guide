@@ -439,6 +439,7 @@ class Game:
             self.player.position.y = event.data[1]
             self.player.rotation = event.data[2]
             self.player.barrel_rotation = event.data[3]
+            self.player.knockback = pygame.Vector2(0,0)
 
         elif event.event_type == EventType.HIT:
             proj_id, hit_id = event.data
