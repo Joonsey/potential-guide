@@ -622,7 +622,6 @@ class Game:
 
             projs_to_cleanup = []
             for projectile in self.client.projectiles:
-                self.check_projectile_interaction(projectile, interactable_tiles)
                 if projectile.lobbed:
                     hit_pos = Projectile.update_lobbed_projectile(projectile, dt)
                     if hit_pos:
@@ -655,6 +654,7 @@ class Game:
                     self.draw_lobbed_projectile(projectile)
 
                 else:
+                    self.check_projectile_interaction(projectile, interactable_tiles)
                     hit_pos = Projectile.update_projectile(projectile, tile_collisions, dt)
                     if hit_pos is not None:
                         new_pos_x, new_pos_y = hit_pos

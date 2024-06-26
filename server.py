@@ -118,11 +118,11 @@ class Server:
         keys_to_remove = []
         for proj_id, proj in temp_proj.items():
             proj.grace_period = max(0, proj.grace_period - dt)
-            self.check_interactive_projectiles(proj, interactable_tiles_list)
-
             if proj.lobbed:
                 hit_pos = Projectile.update_lobbed_projectile(proj, dt)
                 if hit_pos:
+                    self.check_interactive_projectiles(proj, interactable_tiles_list)
+
                     for player in list(filter(lambda x: x.alive, self.connections.values())):
                         if player.id == proj.sender_id and proj.grace_period:
                             # if sender is owner, and there is grace period left we skip
@@ -136,6 +136,7 @@ class Server:
                             self.send_hit(proj.id, player.id)
             else:
                 Projectile.update_projectile(proj, collision_list, dt)
+                self.check_interactive_projectiles(proj, interactable_tiles_list)
 
             if proj.remaining_bounces == 0:
                 keys_to_remove.append(proj_id)
