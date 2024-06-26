@@ -16,6 +16,11 @@ class LifecycleType(IntEnum):
     NEW_ROUND = auto()
     DONE = auto()
 
+NON_LETHAL_LIFECYCLES = [
+    LifecycleType.WAITING_ROOM,
+    LifecycleType.STARTING,
+    LifecycleType.DONE
+]
 
 class ProjectileType(IntEnum):
     LASER = auto()

@@ -18,7 +18,7 @@ from settings import (
     WAITING_ROOM_ID,
     WAITING_TIME,
 )
-from shared import LifecycleType, OnboardType, Projectile, ProjectileType, check_collision, get_distance
+from shared import NON_LETHAL_LIFECYCLES, LifecycleType, OnboardType, Projectile, ProjectileType, check_collision, get_distance
 
 
 LOGGER = logging.getLogger("Server")
@@ -135,7 +135,7 @@ class Server:
                         distance = get_distance(player_center_pos, proj.position)
 
                         if distance < proj.radius:
-                            player.alive = self.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
+                            player.alive = self.lifecycle_state in NON_LETHAL_LIFECYCLES
                             self.send_hit(proj.id, player.id)
             else:
                 Projectile.update_projectile(proj, collision_list, dt)
@@ -243,7 +243,7 @@ class Server:
                 player_rect = (player.position[0], player.position[1], 16, 16)
                 if check_collision(proj_rect, player_rect):
                     projs_hit.append(proj.id)
-                    player.alive = self.lifecycle_state in [LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
+                    player.alive = self.lifecycle_state in NON_LETHAL_LIFECYCLES
                     self.send_hit(proj.id, player.id)
 
         for proj_id in projs_hit:

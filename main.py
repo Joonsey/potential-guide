@@ -15,7 +15,7 @@ from particles import Particle, Ripple, Spark
 from settings import (
     ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, READY_INTERVAL, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
-from shared import LifecycleType, ProjectileType, gaussian_value, get_distance, is_within_radius, lerp, outline, render_stack
+from shared import NON_LETHAL_LIFECYCLES, LifecycleType, ProjectileType, gaussian_value, get_distance, is_within_radius, lerp, outline, render_stack
 
 pygame.mixer.init()
 
@@ -466,8 +466,7 @@ class Game:
 
             if hit_id == self.client.id:
                 EXPLOSION_SOUND.play()
-                self.player.alive = self.client.lifecycle_state in [
-                    LifecycleType.WAITING_ROOM, LifecycleType.STARTING]
+                self.player.alive = self.client.lifecycle_state in NON_LETHAL_LIFECYCLES
 
         elif event.event_type == EventType.RESSURECT:
             self.player.alive = True
