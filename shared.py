@@ -4,6 +4,10 @@ import pygame
 from enum import IntEnum, auto
 
 
+class OnboardType(IntEnum):
+    PLAY = auto()
+    SPECTATE = auto()
+
 class LifecycleType(IntEnum):
     STARTING = auto()
     PLAYING = auto()

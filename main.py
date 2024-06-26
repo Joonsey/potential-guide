@@ -272,7 +272,7 @@ class Game:
 
     @property
     def arena(self) -> Arena:
-        return self.arenas[self.client.current_arena]
+        return self.arenas[int(self.client.current_arena)]
 
     def run_local(self) -> None:
         s = Server()
@@ -519,6 +519,11 @@ class Game:
         elif event.event_type == EventType.RESSURECT:
             self.player.alive = True
 
+        elif event.event_type == EventType.WINNER:
+            if event.data == self.client.id:
+                # do something to celebrate a win
+                print("you won!")
+
     def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType) -> None:
         pos = self.player.position
         self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
@@ -569,7 +574,7 @@ class Game:
                 self.client.send_ready(self.ready)
                 self.ready_interval = READY_INTERVAL
 
-            if self.player.alive:
+            if self.player.alive and not self.client.spectating:
                 mouse = pygame.mouse.get_pressed()
                 mouse_x, mouse_y = pygame.mouse.get_pos()
                 mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
@@ -600,7 +605,8 @@ class Game:
                         Track(self.player.position.copy(), self.player.rotation))
                 self.player.handle_input(keys, tile_collisions, dt)
 
-            self.player.draw(self.screen)
+            if not self.client.spectating:
+                self.player.draw(self.screen)
 
             for id, player in self.client.players.copy().items():
                 self.draw_player(

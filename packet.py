@@ -21,7 +21,7 @@ class PacketType(IntEnum):
 class PayloadFormat:
     CONNECT = struct.Struct("32s")
     DISCONNECT  = struct.Struct("I")
-    ONBOARD = struct.Struct("I")
+    ONBOARD = struct.Struct("II")
     SCORE = struct.Struct("I")
     COORDINATES = struct.Struct("Iffff")
     READY = struct.Struct("?")

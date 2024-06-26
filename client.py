@@ -6,7 +6,7 @@ import threading
 
 from packet import Packet, PacketType, PayloadFormat
 from settings import BUFF_SIZE, WAITING_ROOM_ID
-from shared import LifecycleType, Projectile, ProjectileType
+from shared import LifecycleType, OnboardType, Projectile, ProjectileType
 
 
 LOGGER = logging.getLogger("Client")
@@ -16,6 +16,7 @@ class EventType(IntEnum):
     FORCE_MOVE = auto()
     HIT = auto()
     RESSURECT = auto()
+    WINNER = auto()
 
 
 class Event:
@@ -52,6 +53,7 @@ class Client:
         self.id = 0
         self.running = False
         self.current_arena = 0
+        self.spectating = False
 
         self.event_queue: list[Event] = []
         self.lifecycle_state: LifecycleType = LifecycleType.WAITING_ROOM
@@ -127,12 +129,26 @@ class Client:
 
         if state == LifecycleType.WAITING_ROOM:
             self.current_arena = WAITING_ROOM_ID
+            event = Event()
+            event.event_type = EventType.RESSURECT
+            self.event_queue.append(event)
 
         if state == LifecycleType.NEW_ROUND:
             ...
 
         if state == LifecycleType.DONE:
-            ...
+            event = Event()
+            event.event_type = EventType.WINNER
+            event.data = (int(context), )
+            self.event_queue.append(event)
+
+            event = Event()
+            event.event_type = EventType.RESSURECT
+            self.event_queue.append(event)
+            self.current_arena = WAITING_ROOM_ID
+
+            self.reset()
+            self.reset()
 
         if state in [LifecycleType.PLAYING]:
             event = Event()
@@ -154,12 +170,20 @@ class Client:
             self.handle_update_packet(packet)
 
         if packet.packet_type == PacketType.ONBOARD:
-            id, = PayloadFormat.ONBOARD.unpack(packet.payload)
-            self.id = id
+            onboard_type, data = PayloadFormat.ONBOARD.unpack(packet.payload)
+            onboard_type = OnboardType(onboard_type)
+            if onboard_type == OnboardType.PLAY:
+                self.id = data
+                self.spectating = False
+            else:  #if onboard_type == OnboardType.SPECTATE
+                self.id = 0
+                self.spectating = True
+                self.current_arena = data
 
         if packet.packet_type == PacketType.DISCONNECT:
-            player_id, = PayloadFormat.ONBOARD.unpack(packet.payload)
-            del self.players[player_id]
+            player_id, = PayloadFormat.DISCONNECT.unpack(packet.payload)
+            if player_id in self.players.keys():
+                del self.players[player_id]
 
         if packet.packet_type == PacketType.LIFECYCLE_CHANGE:
             state, context = PayloadFormat.LIFECYCLE_CHANGE.unpack(
@@ -205,7 +229,7 @@ class Client:
         threading.Thread(target=self.listen, daemon=True).start()
 
     def send_position(self, x: float, y: float, rotation: float, barrel_rotation: float) -> None:
-        if not self.running:
+        if not self.running or self.spectating:
             return
 
         packet = Packet(PacketType.COORDINATES, self.sequence_number,
@@ -216,6 +240,9 @@ class Client:
         self._send_packet(packet)
 
     def send_shoot(self, position: tuple[float, float], velocity: tuple[float, float], packet_type: ProjectileType) -> None:
+        if not self.running or self.spectating:
+            return
+
         packet = Packet(PacketType.SHOOT, self.sequence_number,
                         PayloadFormat.SHOOT.pack(
                             0,  # un-initialized

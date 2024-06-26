@@ -10,13 +10,14 @@ from arena import Arena, Tile
 from packet import Packet, PacketType, PayloadFormat
 from settings import (
     BUFF_SIZE,
+    CLEANUP_INTERVAL,
     DECISIVE_SCORE,
     GAME_INTERVAL,
     ROUND_INTERVAL,
     WAITING_ROOM_ID,
     WAITING_TIME,
 )
-from shared import LifecycleType, Projectile, check_collision
+from shared import LifecycleType, OnboardType, Projectile, check_collision
 
 
 LOGGER = logging.getLogger("Server")
@@ -33,6 +34,7 @@ class Connection:
         self.score = 0
         self.alive = True
         self.ready = False
+        self.time_last_packet = time.time()
 
 
 class Server:
@@ -40,6 +42,7 @@ class Server:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.running = False
         self.connections: dict[tuple[str, int], Connection] = {}
+        self.spectators: list[tuple[Packet, tuple[str, int]]] = []
         self.projectiles: dict[int, Projectile] = {}
         self._player_index = 0
         self._projectile_index = 0
@@ -153,6 +156,11 @@ class Server:
                 self.lifecycle_state = LifecycleType.STARTING
                 self.lifecycle_context = time.time() + WAITING_TIME
 
+        elif not len(self.connections.copy().values()):
+            self.lifecycle_state = LifecycleType.WAITING_ROOM
+            self.lifecycle_context = len(self.connections)
+            self.current_arena = WAITING_ROOM_ID
+
         elif not all(p.ready for p in self.connections.copy().values()):
             self.lifecycle_state = LifecycleType.WAITING_ROOM
             self.lifecycle_context = len(self.connections)
@@ -202,7 +210,7 @@ class Server:
                 self.reset()
                 i = 0
                 for addr, player in self.connections.items():
-                    new_pos = self.arena.spawn_positions[i]
+                    new_pos = self.arena.spawn_positions[i % len(self.arena.spawn_positions)]
                     i += 1
 
                     packet = Packet(
@@ -218,6 +226,11 @@ class Server:
             if self.lifecycle_state == LifecycleType.WAITING_ROOM:
                 for player in self.connections.values():
                     player.score = 0
+
+                for packet, addr in self.spectators:
+                    self.onboard_player(packet, addr)
+
+                self.spectators = []
 
     def check_tank_hit(self) -> None:
         projs_hit = []
@@ -237,6 +250,22 @@ class Server:
 
         for proj_id in projs_hit:
             del self.projectiles[proj_id]
+
+    def broadcast_for_spectators(self, packet: Packet):
+        for _, addr in self.spectators:
+            self._send_packet(packet, addr)
+
+    def cleanup_stale_connections(self, now: float) -> None:
+        addr_to_cleanup = []
+        for addr, conn in self.connections.copy().items():
+            if conn.time_last_packet <= now - CLEANUP_INTERVAL:
+                packet = Packet(PacketType.DISCONNECT, 0, PayloadFormat.DISCONNECT.pack(conn.id))
+                self.broadcast(packet)
+                addr_to_cleanup.append(addr)
+
+        for addr in addr_to_cleanup:
+            del self.connections[addr]
+
 
     def loop(self) -> None:
         """
@@ -263,6 +292,8 @@ class Server:
 
             self.check_lifecycle()
 
+            self.cleanup_stale_connections(time.time())
+
             last_iter_time = self._wait_for_tick(start_time, 20)
 
     def _wait_for_tick(self, start_time: float, tick_rate: int) -> float:
@@ -283,8 +314,11 @@ class Server:
         self.connections[addr].name = name
         self.connections[addr].id = self._player_index
         packet = Packet(PacketType.ONBOARD, 1,
-                        PayloadFormat.ONBOARD.pack(self._player_index))
+                        PayloadFormat.ONBOARD.pack(OnboardType.PLAY, self._player_index))
         self._send_packet(packet, addr)
+
+    def allow_new_connection(self) -> bool:
+        return self.lifecycle_state in [LifecycleType.STARTING, LifecycleType.WAITING_ROOM]
 
     def handle_request(self, data: bytes, addr) -> None:
         LOGGER.debug("handling data: %s from %s", data, addr)
@@ -295,11 +329,27 @@ class Server:
             return
 
         if packet.packet_type == PacketType.CONNECT:
-            self.onboard_player(packet, addr)
+            if self.allow_new_connection():
+                self.onboard_player(packet, addr)
+            else:
+                self.spectators.append((packet, addr))
+                packet = Packet(PacketType.ONBOARD, 1,
+                                PayloadFormat.ONBOARD.pack(OnboardType.SPECTATE, self.current_arena))
+                self._send_packet(packet, addr)
+
+        if packet.packet_type == PacketType.DISCONNECT:
+            try:
+                player_id = self.connections[addr].id
+                del self.connections[addr]
+                packet.payload = PayloadFormat.DISCONNECT.pack(player_id)
+                self.broadcast(packet)
+            except:
+                self.spectators = list(filter(lambda x: x[1] != addr, self.spectators))
 
         if addr not in self.connections:
-            print("got a packet from unknown, ignoring")
             return
+
+        self.connections[addr].time_last_packet = time.time()
 
         if packet.packet_type == PacketType.COORDINATES:
             _, x, y, rotation, barrel_rotation = PayloadFormat.COORDINATES.unpack(
@@ -309,11 +359,6 @@ class Server:
             self.connections[addr].rotation = rotation
             self.connections[addr].barrel_rotation = barrel_rotation
 
-        if packet.packet_type == PacketType.DISCONNECT:
-            player_id = self.connections[addr].id
-            del self.connections[addr]
-            packet.payload = PayloadFormat.DISCONNECT.pack(player_id)
-            self.broadcast(packet)
 
         if packet.packet_type == PacketType.READY:
             ready, = PayloadFormat.READY.unpack(packet.payload)
@@ -342,6 +387,8 @@ class Server:
     def broadcast(self, packet: Packet) -> None:
         for addr in self.connections.copy().keys():
             self._send_packet(packet, addr)
+
+        self.broadcast_for_spectators(packet)
 
     def simulation_loop(self):
         """
