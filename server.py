@@ -6,7 +6,7 @@ import logging
 import random
 import pygame
 
-from arena import Arena
+from arena import Arena, Tile
 from packet import Packet, PacketType, PayloadFormat
 from settings import (
     BUFF_SIZE,
@@ -70,6 +70,7 @@ class Server:
                         tile.position[1], tile.width, tile.height)
             for tile in self.arenas[val].get_colliders()
         ]
+        self.interactable_tiles = list(filter(lambda x: x.interactable, self.arenas[val].tiles))
         self._current_arena = val
 
     def new_arena(self):
@@ -91,7 +92,7 @@ class Server:
                         ))
         self.broadcast(packet)
 
-    def update_projectiles(self, collision_list: list[pygame.Rect], dt: float) -> None:
+    def update_projectiles(self, collision_list: list[pygame.Rect], interactable_tiles_list: list[Tile], dt: float) -> None:
         temp_proj = self.projectiles.copy()
         keys_to_remove = []
         for proj_id, proj in temp_proj.items():
@@ -103,6 +104,12 @@ class Server:
             # Calculate new potential position
             new_pos_x = x + vel_x * dt * proj.speed
             new_pos_y = y + vel_y * dt * proj.speed
+
+            for tile in interactable_tiles_list:
+                if (pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                        .colliderect(pygame.Rect(new_pos_x, new_pos_y, 8, 8))):
+                    colided = True
+                    proj.remaining_bounces = 0
 
             # Check for vertical collisions
             if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
@@ -301,21 +308,22 @@ class Server:
             self.broadcast(packet)
 
         if packet.packet_type == PacketType.SHOOT:
-            _, x_pos, y_pos, x_vel, y_vel, projectile_type = PayloadFormat.SHOOT.unpack(
+            _, x_pos, y_pos, x_vel, y_vel, projectile_type, _ = PayloadFormat.SHOOT.unpack(
                 packet.payload)
 
             new_id = self._projectile_index
             self._projectile_index += 1
 
+            sender_id = self.connections[addr].id
             proj = Projectile(projectile_type)
             proj.id = new_id
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
-            proj.sender_id = self.connections[addr].id
+            proj.sender_id = sender_id
             self.projectiles[new_id] = proj
 
             packet.payload = PayloadFormat.SHOOT.pack(
-                new_id, x_pos, y_pos, x_vel, y_vel, projectile_type)
+                new_id, x_pos, y_pos, x_vel, y_vel, projectile_type, sender_id)
 
             self.broadcast(packet)
 
@@ -332,7 +340,7 @@ class Server:
         while self.running:
             start_time = time.time()
             self.update_projectiles(
-                self.tile_collisions, time.time() - last_iter_time)
+                self.tile_collisions, self.interactable_tiles, time.time() - last_iter_time)
             self.check_tank_hit()
 
             last_iter_time = self._wait_for_tick(start_time, 60)

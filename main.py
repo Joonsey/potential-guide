@@ -6,7 +6,7 @@ import sys
 import math
 import random
 
-from arena import Arena
+from arena import Arena, Tile
 from assets import AssetLoader
 from server import Server
 from client import Client, Event, EventType, Projectile
@@ -304,13 +304,22 @@ class Game:
                 -player.rotation
             )
 
-    def draw_arena(self) -> None:
+    def draw_arena(self, dt: float) -> None:
         arena_surf = self.screen.copy()
         arena_surf.fill((0, 0, 0))
         arena_surf.set_colorkey((0, 0, 0))
 
         for i, tile in enumerate(self.arena.tiles):
-            if tile.tile_type == "#":
+            if tile.tile_type in [str(i) for i in range(0, len(ProjectileType) + 1)]:
+                # render bullet select tile
+                projectile_type = ProjectileType(int(tile.tile_type))
+
+                rotation = self.frame_count
+                self.draw_projectile(arena_surf, tile.position, rotation, projectile_type)
+                pygame.draw.ellipse(self.screen, PLAYER_SHADOW_COLOR, (*tile.position, tile.width, tile.height))
+
+
+            elif tile.tile_type == "#":
                 color = ARENA_WALL_COLOR
 
                 surf = pygame.Surface((tile.width, tile.height))
@@ -329,11 +338,9 @@ class Game:
 
         outline(arena_surf, self.screen, (0, 0), 2)
 
-    def draw_projectile(self, position: tuple[float, float], rotation: float, projectile_type: ProjectileType) -> None:
+    def draw_projectile(self, dest: pygame.Surface, position: tuple[float, float], rotation: float, projectile_type: ProjectileType) -> None:
 
         match projectile_type:
-            case ProjectileType.BALL:
-                surf = self.asset_loader.sprite_sheets['bullet-ball']
             case ProjectileType.LASER:
                 surf = self.asset_loader.sprite_sheets['bullet-lazer']
             case ProjectileType.SHOCKWAVE:
@@ -342,13 +349,13 @@ class Game:
                 surf = self.asset_loader.sprite_sheets['bullet']
 
         render_stack(
-            self.screen,
+            dest,
             surf,
             pygame.Vector2(position),
             int(rotation)
         )
 
-    def update_projectile(self, projectile: Projectile, collision_list: list[pygame.Rect], dt: float) -> None:
+    def update_projectile(self, projectile: Projectile, collision_list: list[pygame.Rect], interactable_tiles_list: list[Tile], dt: float) -> None:
         x, y = projectile.position
         vel_x, vel_y = projectile.velocity
 
@@ -358,6 +365,20 @@ class Game:
         colided = False
 
         # Check for vertical collisions
+
+        for tile in interactable_tiles_list:
+            if (pygame.Rect(tile.position[0], tile.position[1], tile.width, tile.height)
+                    .colliderect(pygame.Rect(new_pos_x, new_pos_y, 8, 8))):
+                colided = True
+                projectile.remaining_bounces = 0
+                if projectile.sender_id == self.client.id:
+                    try:
+                        id = self.player.bullets.index(ProjectileType(int(projectile.projectile_type)))
+                    except:
+                        id = 0
+                    self.player.bullets[id] = ProjectileType(int(tile.tile_type))
+
+
         if any(pygame.Rect(x, new_pos_y, 8, 8).colliderect(rect) for rect in collision_list):
             colided = True
             # Reflect the velocity on the y-axis
@@ -480,7 +501,7 @@ class Game:
             self.incremenet_frame_count()
             self.screen.fill((128, 128, 128))
             self.draw_and_update_tracks(dt)
-            self.draw_arena()
+            self.draw_arena(dt)
 
             event_queue = self.client.event_queue.copy()
             if event_queue:
@@ -495,6 +516,7 @@ class Game:
                     tile.position[0], tile.position[1], tile.width, tile.height)
                 for tile in self.arena.get_colliders()
             ]
+            interactable_tiles = list(filter(lambda x: x.interactable, self.arena.tiles))
 
             self.client.send_position(
                 self.player.position.x, self.player.position.y,
@@ -551,9 +573,9 @@ class Game:
                 self.particles.remove(part)
 
             for projectile in self.client.projectiles:
-                self.update_projectile(projectile, tile_collisions, dt)
+                self.update_projectile(projectile, tile_collisions, interactable_tiles, dt)
                 self.draw_projectile(
-                    projectile.position, projectile.rotation, projectile.projectile_type)
+                    self.screen, projectile.position, projectile.rotation, projectile.projectile_type)
 
             self.shoot_cooldown[0] = max(0, self.shoot_cooldown[0] - dt / 10)
             self.shoot_cooldown[1] = max(0, self.shoot_cooldown[1] - dt / 10)

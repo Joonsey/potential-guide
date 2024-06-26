@@ -14,7 +14,7 @@ class LifecycleType(IntEnum):
 
 class ProjectileType(IntEnum):
     LASER = auto()
-    BALL = auto()
+    #BALL = auto()
     BULLET = auto()
     SHOCKWAVE = auto()
 

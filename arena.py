@@ -1,4 +1,5 @@
 from settings import SCREEN_HEIGHT, SCREEN_WIDTH
+from shared import ProjectileType
 
 
 class Tile:
@@ -8,6 +9,7 @@ class Tile:
         self.height: float
         self.width: float
         self.has_collision = False
+        self.interactable = False
 
 
 class Arena:
@@ -38,6 +40,9 @@ class Arena:
 
                 if t in ["#"]:
                     tile.has_collision = True
+
+                if t in [str(i) for i in range(0, len(ProjectileType) + 1)]:
+                    tile.interactable = True
 
                 if t in ["@"]:
                     self.spawn_positions.append(tile.position)

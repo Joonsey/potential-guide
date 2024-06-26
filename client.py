@@ -175,12 +175,13 @@ class Client:
             self.event_queue.append(event)
 
         if packet.packet_type == PacketType.SHOOT:
-            id, x_pos, y_pos, x_vel, y_vel, projectile_type = PayloadFormat.SHOOT.unpack(
+            id, x_pos, y_pos, x_vel, y_vel, projectile_type, sender_id = PayloadFormat.SHOOT.unpack(
                 packet.payload)
             proj = Projectile(projectile_type)
             proj.position = (x_pos, y_pos)
             proj.velocity = (x_vel, y_vel)
             proj.id = id
+            proj.sender_id = sender_id
             self.projectiles.append(proj)
 
     def listen(self) -> None:
@@ -212,7 +213,8 @@ class Client:
                             position[1],
                             velocity[0],
                             velocity[1],
-                            packet_type
+                            packet_type,
+                            self.id
                         ))
         self._send_packet(packet)
 

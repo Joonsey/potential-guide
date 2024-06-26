@@ -33,4 +33,10 @@ while True:
 
         screen.blit(surf, tile.position)
 
+    for tile in list(filter(lambda x: x.interactable, s.arena.tiles)):
+        surf = pygame.surface.Surface((tile.width, tile.height))
+        surf.fill((205, 205, 255))
+
+        screen.blit(surf, tile.position)
+
     pygame.display.flip()
