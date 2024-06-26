@@ -37,6 +37,7 @@ class Player:
         self.interpolation_t: float = 0
         self.alive = True
         self.ready = False
+        self.has_crown = False
 
     def __repr__(self) -> str:
         return f"<Player {self.name}, {self.position}, {self.score}>"
@@ -104,7 +105,7 @@ class Client:
 
         for i in range(player_count):
             data = packet.payload[i * size: size + size * i]
-            id, x, y, rotation, barrel_rotation, score, ready = PayloadFormat.UPDATE.unpack(data)
+            id, x, y, rotation, barrel_rotation, score, ready, has_crown = PayloadFormat.UPDATE.unpack(data)
 
             buff = self.players.copy()
             if id in buff.keys():
@@ -121,6 +122,7 @@ class Client:
             player.rotation = rotation
             player.barrel_rotation = barrel_rotation
             player.ready = ready
+            player.has_crown = has_crown
             self.players[id] = player
 
     def handle_lifecycle_change(self, state: LifecycleType, context: float) -> None:

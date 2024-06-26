@@ -25,7 +25,8 @@ class PayloadFormat:
     SCORE = struct.Struct("I")
     COORDINATES = struct.Struct("Iffff")
     READY = struct.Struct("?")
-    UPDATE = struct.Struct(COORDINATES.format + SCORE.format + READY.format)  # combines COORDINATES, SCORE and READY
+    HAS_CROWN = struct.Struct("?")
+    UPDATE = struct.Struct(COORDINATES.format + SCORE.format + READY.format + HAS_CROWN.format)  # combines COORDINATES, SCORE, READY and HAS_CROWN
     SHOOT = struct.Struct("IffffII")
     HIT = struct.Struct("II")
     LIFECYCLE_CHANGE = struct.Struct("Id")  # LifecycleType, context

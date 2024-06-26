@@ -21,6 +21,7 @@ class AssetLoader:
             "tank" : self.load_spritesheet("sprites/tank.png", 16),
             "tank-broken" : self.load_spritesheet("sprites/tank-broken.png", 16),
             "tank-barrel" : self.load_spritesheet("sprites/tank-barrel.png", 16),
+            "tank-barrel-crown" : self.load_spritesheet("sprites/tank-barrel-crown.png", 16),
             "wall" : self.load_spritesheet("sprites/wall.png", 40),
             "track" : self.load_spritesheet("sprites/tracks.png", 16),
             "car": [pygame.image.load('assets/sprites/car/' + img) for img in os.listdir('assets/sprites/car')]

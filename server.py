@@ -36,6 +36,7 @@ class Connection:
         self.alive = True
         self.ready = False
         self.time_last_packet = time.time()
+        self.wins = 0
 
 
 class Server:
@@ -178,13 +179,14 @@ class Server:
                 self.round_index = 0
                 return
 
-            for player in self.connections.copy().values():
+            for player in self.connections.values():
                 if player.score >= DECISIVE_SCORE:
                     self.current_arena = WAITING_ROOM_ID
                     self.round_index = 0
                     self.lifecycle_state = LifecycleType.DONE
                     self.new_game_time = time.time() + GAME_INTERVAL
                     self.lifecycle_context = player.id
+                    player.wins += 1
 
         elif self.lifecycle_state == LifecycleType.DONE and time.time() >= self.new_game_time:
             self.lifecycle_state = LifecycleType.WAITING_ROOM
@@ -284,7 +286,8 @@ class Server:
                     item.rotation,
                     item.barrel_rotation,
                     item.score,
-                    item.ready
+                    item.ready,
+                    item.wins > 0
                 )
             pack = Packet(PacketType.UPDATE, 0, update_data)
             self.broadcast(pack)

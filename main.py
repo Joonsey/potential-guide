@@ -337,8 +337,10 @@ class Game:
             )
             barrel_pos = vec_pos.copy()
             barrel_pos.y -= 4
+
+            barrel_sprite = self.asset_loader.sprite_sheets['tank-barrel-crown'] if player.has_crown else self.asset_loader.sprite_sheets['tank-barrel']
             render_stack(
-                self.screen, self.asset_loader.sprite_sheets['tank-barrel'], barrel_pos, int(player.barrel_rotation))
+                self.screen, barrel_sprite, barrel_pos, int(player.barrel_rotation))
 
         else:
             render_stack(
@@ -472,9 +474,12 @@ class Game:
             self.player.alive = True
 
         elif event.event_type == EventType.WINNER:
-            if event.data == self.client.id:
-                # do something to celebrate a win
-                print("you won!")
+            winner_id, = event.data
+            if winner_id == self.client.id:
+                self.enable_crown()
+
+    def enable_crown(self) -> None:
+        self.player.barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel-crown']
 
     def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType, target: tuple[float, float] | None = None) -> None:
         spark_pos = self.player.position.copy()
