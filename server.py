@@ -51,7 +51,9 @@ class Server:
         self.round_index = 0
 
         self._current_arena = 0
-        self.arenas = [Arena(os.path.join('arenas', file)) for file in os.listdir('arenas') ]
+        arena_names = os.listdir('arenas')
+        arena_names.sort()
+        self.arenas = [Arena(os.path.join('arenas', file)) for file in arena_names ]
         self.tile_collisions = []
         self.current_arena = WAITING_ROOM_ID
 

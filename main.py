@@ -268,8 +268,11 @@ class Game:
         self.tracks: list[Track] = []  # x, y, time
         self.particles: list[Particle] = []
 
+        arena_names = os.listdir('arenas')
+        arena_names.sort()
+
         self.arenas = [Arena(os.path.join('arenas', file))
-                       for file in os.listdir('arenas')]
+                       for file in arena_names]
         self.player.position = pygame.Vector2(
             random.choice(self.arena.spawn_positions))
 
