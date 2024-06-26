@@ -83,6 +83,9 @@ class Server:
 
     def new_arena(self):
         eligible_arenas = list(filter(lambda x: x.players_count >= len(self.connections), self.arenas))
+        waiting_room = self.arenas[WAITING_ROOM_ID]
+        if waiting_room in eligible_arenas:
+            eligible_arenas.remove(waiting_room)
         chosen_arena = random.choice(eligible_arenas)
         self.current_arena = self.arenas.index(chosen_arena)
 
