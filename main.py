@@ -355,7 +355,8 @@ class Game:
 
                 rotation = self.frame_count
                 self.draw_projectile(arena_surf, tile.position, rotation, projectile_type)
-                pygame.draw.ellipse(self.screen, PLAYER_SHADOW_COLOR, (*tile.position, tile.width, tile.height))
+                offset_position = tile.position[0]+ 4, tile.position[1] + 8
+                pygame.draw.ellipse(self.screen, PLAYER_SHADOW_COLOR, (*offset_position, 8, 8))
 
 
             elif tile.tile_type == "#":
