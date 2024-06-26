@@ -156,7 +156,7 @@ class UI:
     def draw(self, players: list[ClientPlayer], lifecycle_state: LifecycleType, context: float, game: 'Game') -> None:
         position_map = [
             {"topleft": (10, 10)},
-            {"topright": (DISPLAY_WIDTH - 10, 10)}
+            {"topright": (game.display_resolution[0] - 10, 10)}
         ]
 
         bullet_icon_map = {
@@ -174,13 +174,14 @@ class UI:
             # Blit texts onto the screen
             self.ui_screen.blit(player_text, rect)
 
+        display_width, display_height = game.display_resolution
         #  TODO: this is not really 'UI' should be moved
         if lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
             now = time.time()
             countdown = context - now
             text = self.arena_font.render(f"{countdown:.0f}", True, (0, 0, 0))
             rect = text.get_rect(topleft=(
-                DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 - text.get_height() // 2))
+                display_width  // 2 - text.get_width() // 2, display_height  // 2 - text.get_height() // 2))
 
             self.ui_screen.blit(text, rect)
 
@@ -190,7 +191,7 @@ class UI:
             player = int(game.client.lifecycle_context)
             text = self.arena_font.render(f"Player {player} won!", True, (0, 0, 0))
             rect = text.get_rect(topleft=(
-                DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 - text.get_height() // 2))
+                display_width // 2 - text.get_width() // 2, display_height // 2 - text.get_height() // 2))
 
             self.ui_screen.blit(text, rect)
 
@@ -198,7 +199,7 @@ class UI:
         if game.client.spectating:
             rc_text = self.font.render(f"You are currently spectating you will join next round", True, (28, 28, 28))
             rect = rc_text.get_rect(topleft=(
-                DISPLAY_WIDTH // 2 - rc_text.get_width() // 2, 10))
+                display_width // 2 - rc_text.get_width() // 2, 10))
 
             self.ui_screen.blit(rc_text, rect)
 
@@ -207,13 +208,13 @@ class UI:
             count_ready_players = len(list(filter(lambda x: x.ready, players)))
             rc_text = self.arena_font.render(f"{count_ready_players}/{len(players)}", True, (0, 0, 0) if not game.ready else (120, 220, 120))
             rect = rc_text.get_rect(topleft=(
-                DISPLAY_WIDTH // 2 - rc_text.get_width() // 2, DISPLAY_HEIGHT // 2 - rc_text.get_height() // 2))
+                display_width // 2 - rc_text.get_width() // 2, display_height // 2 - rc_text.get_height() // 2))
 
             self.ui_screen.blit(rc_text, rect)
 
             text = self.font.render(f"[R] to {'un-ready' if game.ready else 'ready'}", True, (0, 0, 0, 120))
             rect = text.get_rect(topleft=(
-                DISPLAY_WIDTH // 2 - text.get_width() // 2, DISPLAY_HEIGHT // 2 + rc_text.get_height() // 2))
+                display_width // 2 - text.get_width() // 2, display_height // 2 + rc_text.get_height() // 2))
 
             self.ui_screen.blit(text, rect)
 
@@ -238,8 +239,8 @@ class UI:
                 bullet_sprite, (bullet_count * icon_size, bullet_count * icon_size))
             cd_surf.blit(bullet_sprite, (i * icon_size, 0))
 
-        pos = (DISPLAY_WIDTH // 2 - cd_surf.get_width(),
-               DISPLAY_HEIGHT - cd_surf.get_height())
+        pos = (display_width // 2 - cd_surf.get_width(),
+               display_height - cd_surf.get_height())
         self.ui_screen.blit(cd_surf, pos)
 
 
@@ -247,10 +248,12 @@ class Game:
     def __init__(self) -> None:
         self.client = Client()
         self.asset_loader = AssetLoader()
+        self.display_resolution = (DISPLAY_WIDTH, DISPLAY_HEIGHT)
         self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.display = pygame.display.set_mode((DISPLAY_WIDTH, DISPLAY_HEIGHT))
+        self.display = pygame.display.set_mode(self.display_resolution)
         pygame.display.set_caption("Ptanks")
         self.frame_count = 0
+        self.fullscreen = False
 
         tank_sprites = self.asset_loader.sprite_sheets['tank']
         tank_barrel_sprites = self.asset_loader.sprite_sheets['tank-barrel']
@@ -580,13 +583,22 @@ class Game:
             if keys[pygame.K_r] and not self.ready_interval and self.client.lifecycle_state in [LifecycleType.STARTING, LifecycleType.WAITING_ROOM]:
                 self.ready = not self.ready
                 self.client.send_ready(self.ready)
-                self.ready_interval = READY_INTERVAL
+
+            if keys[pygame.K_F11]:
+                self.fullscreen = not self.fullscreen
+                if self.fullscreen:
+                    fullscreen_res = pygame.display.list_modes()[0]
+                    self.display_resolution = fullscreen_res
+                    self.display = pygame.display.set_mode(self.display_resolution, pygame.NOFRAME)
+                else:
+                    self.display_resolution = DISPLAY_WIDTH, DISPLAY_HEIGHT
+                    self.display = pygame.display.set_mode(self.display_resolution)
 
             if self.player.alive and not self.client.spectating:
                 mouse = pygame.mouse.get_pressed()
                 mouse_x, mouse_y = pygame.mouse.get_pos()
-                mouse_x *= SCREEN_WIDTH / DISPLAY_WIDTH
-                mouse_y *= SCREEN_HEIGHT / DISPLAY_HEIGHT
+                mouse_x *= SCREEN_WIDTH / self.display_resolution[0]
+                mouse_y *= SCREEN_HEIGHT / self.display_resolution[1]
                 direction_vector = pygame.Vector2(
                     mouse_x, mouse_y) - self.player.position
                 direction_vector = direction_vector.normalize()
@@ -639,7 +651,7 @@ class Game:
             self.shoot_cooldown[1] = max(0, self.shoot_cooldown[1] - dt / 10)
 
             pygame.transform.scale(
-                self.screen, (DISPLAY_WIDTH, DISPLAY_HEIGHT), self.display)
+                self.screen, self.display_resolution, self.display)
 
             self.ui.draw(list(self.client.players.values()),
                          self.client.lifecycle_state,
@@ -649,6 +661,15 @@ class Game:
 
             pygame.display.flip()
             pygame.event.pump()  # process event queue
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+
+                elif event.type == pygame.VIDEORESIZE:
+                    self.display_resolution = event.size
+                    self.display = pygame.display.set_mode(self.display_resolution, pygame.NOFRAME)
+
 
             if keys[pygame.K_q]:
                 self.running = False
