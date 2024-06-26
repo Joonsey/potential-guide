@@ -19,11 +19,11 @@ class LifecycleType(IntEnum):
 
 class ProjectileType(IntEnum):
     LASER = auto()
-    #BALL = auto()
+    SNIPER = auto()
     BULLET = auto()
     SHOCKWAVE = auto()
-    SNIPER = auto()
     CLUSTER = auto()
+    #BALL = auto()
 
 
 class Projectile:
