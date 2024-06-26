@@ -72,6 +72,11 @@ class Server:
         ]
         self._current_arena = val
 
+    def new_arena(self):
+        eligible_arenas = list(filter(lambda x: x.players_count >= len(self.connections), self.arenas))
+        chosen_arena = random.choice(eligible_arenas)
+        self.current_arena = self.arenas.index(chosen_arena)
+
     def _send(self, data: bytes, address: tuple[str, int]) -> None:
         self.sock.sendto(data, address)
 
@@ -132,14 +137,28 @@ class Server:
 
     def update_lifecycle(self) -> None:
         if self.lifecycle_state == LifecycleType.WAITING_ROOM:
-            if len(self.connections) == self.arena.players_count:
+            if len(self.connections) in [2, 4]:
                 self.lifecycle_state = LifecycleType.STARTING
                 self.lifecycle_context = time.time() + WAITING_TIME
 
-        elif len(self.connections) < self.arena.players_count:
+        elif len(self.connections) < 2:
             self.lifecycle_state = LifecycleType.WAITING_ROOM
             self.lifecycle_context = len(self.connections)
             self.current_arena = 0
+            i = 0
+            for addr, player in self.connections.items():
+                new_pos = self.arena.spawn_positions[i]
+                i += 1
+
+                packet = Packet(
+                    PacketType.FORCE_MOVE, 0,
+                    PayloadFormat.COORDINATES.pack(
+                        player.id, *new_pos, 0, 0
+                    ))
+
+                player.position = new_pos
+
+                self._send_packet(packet, addr)
 
         elif self.lifecycle_state == LifecycleType.PLAYING:
             remaining_players = list(
@@ -152,10 +171,11 @@ class Server:
                 self.lifecycle_state = LifecycleType.NEW_ROUND
                 self.lifecycle_context = time.time() + ROUND_INTERVAL
 
-        elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING] and time.time() >= self.lifecycle_context:
-            self.lifecycle_state = LifecycleType.PLAYING
-            self.current_arena = random.randint(0, len(self.arenas) - 1)
-            self.lifecycle_context = self.current_arena
+        elif self.lifecycle_state in [LifecycleType.NEW_ROUND, LifecycleType.STARTING]:
+            if time.time() >= self.lifecycle_context:
+                self.lifecycle_state = LifecycleType.PLAYING
+                self.new_arena()
+                self.lifecycle_context = self.current_arena
 
     def check_lifecycle(self) -> None:
         old_state = self.lifecycle_state

@@ -11,8 +11,9 @@ from assets import AssetLoader
 from server import Server
 from client import Client, Event, EventType, Projectile
 from client import Player as ClientPlayer
+from particles import Particle, Ripple, Spark
 from settings import (
-    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, SPARK_LIFETIME, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
+    ARENA_WALL_COLOR, ARENA_WALL_COLOR_SHADE, DISPLAY_WIDTH, DISPLAY_HEIGHT, FONT_SIZE, LARGE_FONT_SIZE, PLAYER_CIRCLE_RADIUS, PLAYER_SHADOW_COLOR, RIPPLE_LIFETIME, SHOCKWAVE_KNOCKBACK, TRACK_LIFETIME, SCREEN_HEIGHT, SCREEN_WIDTH, TRACK_INTERVAL
 )
 from shared import LifecycleType, ProjectileType, is_within_radius, lerp, outline, render_stack
 
@@ -32,77 +33,6 @@ class Track:
         self.lifetime: float = TRACK_LIFETIME
         self.position = pos
         self.rotation = rotation
-
-
-class Particle:
-    def __init__(self) -> None:
-        self.lifetime = RIPPLE_LIFETIME  # FIXME
-
-    def update(self, dt: float) -> None:
-        self.lifetime = max(0, self.lifetime - dt)
-
-    def draw(self, screen: pygame.Surface) -> None:
-        ...
-
-
-class Spark(Particle):
-    def __init__(self, pos: pygame.Vector2, angle, color, scale: float = 1, force: float = 1):
-        super().__init__()
-        self.lifetime: float = SPARK_LIFETIME
-        self.pos = pos
-        self.angle = angle
-        self.scale = scale
-        self.color = color
-        self.force = force
-
-    def calculate_movement(self, dt):
-        return [math.cos(self.angle) * self.lifetime * dt * self.force, math.sin(self.angle) * self.lifetime * dt * self.force]
-
-    def update(self, dt):
-        super().update(dt)
-        movement = self.calculate_movement(dt * 20)
-        self.pos.x += movement[0]
-        self.pos.y += movement[1]
-
-        self.lifetime = max(0, self.lifetime - 2 * dt)
-
-    def draw(self, screen: pygame.Surface):
-        points = [
-            [self.pos.x + math.cos(self.angle) * self.lifetime * self.scale,
-             self.pos.y + math.sin(self.angle) * self.lifetime * self.scale],
-            [self.pos.x + math.cos(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3,
-             self.pos.y + math.sin(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3],
-            [self.pos.x - math.cos(self.angle) * self.lifetime * self.scale * 3.5,
-             self.pos.y - math.sin(self.angle) * self.lifetime * self.scale * 3.5],
-            [self.pos.x + math.cos(self.angle - math.pi / 2) * self.lifetime * self.scale * 0.3,
-             self.pos.y - math.sin(self.angle + math.pi / 2) * self.lifetime * self.scale * 0.3],
-        ]
-        pygame.draw.polygon(screen, self.color, points)  # pyright: ignore
-        pygame.draw.polygon(screen, (255, 255, 255),
-                            points, 1)  # pyright: ignore
-
-
-class Ripple(Particle):
-    def __init__(self, pos: pygame.Vector2, max_radius: float, force: float = 1, width: int = 3, color: pygame.Color = pygame.Color(222, 120, 22, 128)) -> None:
-        self.lifetime: float = RIPPLE_LIFETIME
-        self.position = pos
-        self.color = color
-        self.max_radius = max_radius
-        self.width = width
-        self.force = force
-
-    def update(self, dt: float) -> None:
-        super().update(dt)
-
-    def draw(self, screen: pygame.Surface) -> None:
-        rad = self.radius * 2
-        h_to_w_coffactor = SCREEN_HEIGHT / SCREEN_WIDTH
-        pygame.draw.ellipse(screen, self.color, (self.position.x -
-                            rad / 2, self.position.y - rad / 2, rad, rad), self.width)
-
-    @property
-    def radius(self) -> float:
-        return self.max_radius * self.force * (1 - self.lifetime / RIPPLE_LIFETIME)
 
 
 class Player:
@@ -606,7 +536,7 @@ class Game:
 
             self.player.draw(self.screen)
 
-            for id, player in self.client.players.items():
+            for id, player in self.client.players.copy().items():
                 self.draw_player(
                     player, self.frame_count) if id != self.client.id else ...
 
