@@ -525,6 +525,14 @@ class Game:
                 print("you won!")
 
     def shoot(self, velocity: tuple[float, float], projectile_type: ProjectileType) -> None:
+        spark_pos = self.player.position.copy()
+        spark_pos += pygame.Vector2(velocity[0], velocity[1]) * 8
+        angle = math.atan2(velocity[1], velocity[0])
+        spark_pos.y -= 0
+        spark_pos.x += 8
+
+        for i in range(2):
+            self.particles.append(Spark(spark_pos.copy(), angle + (i / 3), (255, 255, 255), scale=.35, force=.15))
         pos = self.player.position
         self.client.send_shoot((pos.x, pos.y), velocity, projectile_type)
 
