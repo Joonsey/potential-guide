@@ -40,7 +40,7 @@ class Projectile:
         self.start_position = (self.position[0], self.position[1])
         self._velocity: tuple[float, float] = (0, 0)
         self.sender_id = 0
-        self.grace_period = 0.15
+        self.grace_period = 0.35
         self.projectile_type = projectile_type
         self.rotation = 0
         self.lobbed = False
@@ -53,21 +53,25 @@ class Projectile:
                 self.speed = self.SPEED * 2
                 self.remaining_bounces = 2
                 self.cooldown = .05
+                self.grace_period = 0.1
             case ProjectileType.SHOCKWAVE:
-                self.speed = self.SPEED * 2
-                self.cooldown = .15
+                self.speed = self.SPEED * 1.5
+                self.cooldown = .35
                 self.lobbed = True
                 self.radius = 64
                 self.hurts = False
+                self.grace_period = 0
             case ProjectileType.SNIPER:
                 self.speed = self.SPEED * 3
                 self.remaining_bounces = 4
                 self.cooldown = .5
+                self.grace_period = 0.1
             case ProjectileType.CLUSTER:
                 self.speed = self.SPEED
                 self.cooldown = .5
                 self.lobbed = True
                 self.radius = 64
+                self.grace_period = 0
             case _:
                 self.speed = self.SPEED
                 self.remaining_bounces = 3
