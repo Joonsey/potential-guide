@@ -669,8 +669,15 @@ class Game:
                                     new_proj.position = proj.position
                                     new_proj.velocity = (vel.x, vel.y)
 
-                                    self.client.send_shoot(new_proj.position, (vel.x, vel.y), ProjectileType.SNIPER)
-                                    projs_to_cleanup.append(proj)
+                                    # This should be moved to the server perhaps
+                                    # Did this initialy but encountered some issues
+                                    # Don't remember so will keep it heref for now
+                                    if proj.sender_id == self.client.id:
+                                        self.client.send_shoot(new_proj.position, (vel.x, vel.y), ProjectileType.SNIPER)
+
+                                    # Same problem as on server, we only drop proj if it's not a sniper show
+                                    if proj.projectile_type != ProjectileType.SNIPER:
+                                        projs_to_cleanup.append(proj)
 
                         else:
                             r = Ripple(pos.copy(), 20, force=1.5,
