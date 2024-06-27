@@ -1,4 +1,4 @@
-import math
+import sys
 import os
 import socket
 import threading
@@ -431,4 +431,11 @@ class Server:
 if __name__ == "__main__":
     LOGGER.setLevel(logging.DEBUG)
     s = Server()
-    s.start()
+    if '--port' in sys.argv:
+        idx = sys.argv.index('--port')
+        if len(sys.argv) < idx + 1:
+            raise ValueError("missing argument to option --port")
+
+        s.start(port=int(sys.argv[idx + 1]))
+    else:
+        s.start()
