@@ -56,7 +56,7 @@ class Projectile:
                 self.grace_period = 0.1
             case ProjectileType.SHOCKWAVE:
                 self.speed = self.SPEED * 1.5
-                self.cooldown = .35
+                self.cooldown = .5
                 self.lobbed = True
                 self.radius = 64
                 self.hurts = False
@@ -67,7 +67,7 @@ class Projectile:
                 self.cooldown = .5
                 self.grace_period = 0.1
             case ProjectileType.CLUSTER:
-                self.speed = self.SPEED
+                self.speed = self.SPEED * 0.65
                 self.cooldown = .5
                 self.lobbed = True
                 self.radius = 64
