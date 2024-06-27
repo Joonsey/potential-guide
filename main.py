@@ -764,4 +764,4 @@ if __name__ == "__main__":
 
         game.run(sys.argv[idx + 1])
     else:
-        game.run()
+        game.run('84.215.24.251')  # publicly available server
