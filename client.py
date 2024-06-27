@@ -47,7 +47,7 @@ class Client:
     def __init__(self) -> None:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.address: str = "127.0.0.1"
-        self.port: int = 5555
+        self.port: int = 30000
         self._sequence_number = 0
         self.players: dict[int, Player] = {}
         self.projectiles: list[Projectile] = []

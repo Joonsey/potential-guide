@@ -414,7 +414,7 @@ class Server:
 
             last_iter_time = self._wait_for_tick(start_time, 60)
 
-    def start(self, address: str = "0.0.0.0", port: int = 5555) -> None:
+    def start(self, address: str = "0.0.0.0", port: int = 30000) -> None:
         """
         Start the UDP server
         """
