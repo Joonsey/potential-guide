@@ -338,8 +338,10 @@ class Server:
 
         if packet.packet_type == PacketType.CONNECT:
             if self.allow_new_connection():
+                print('new player! %s, %s current players' % (addr, len(self.connections) + 1))
                 self.onboard_player(packet, addr)
             else:
+                print('new spectator! %s, %s current players' % (addr, len(self.connections)))
                 self.spectators.append((packet, addr))
                 packet = Packet(PacketType.ONBOARD, 1,
                                 PayloadFormat.ONBOARD.pack(OnboardType.SPECTATE, self.current_arena))
