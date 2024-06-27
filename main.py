@@ -419,7 +419,7 @@ class Game:
                     except:
                         id = 0
                     self.player.bullets[id] = ProjectileType(int(tile.tile_type))
-                    self.shoot_cooldown = [0, 0]
+                    self.shoot_cooldown = [0., 0.]
 
     def handle_event(self, event: Event) -> None:
         # FIXME breaking index error
