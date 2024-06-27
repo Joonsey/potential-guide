@@ -636,14 +636,14 @@ class Game:
 
 
                         if projectile.projectile_type == ProjectileType.SHOCKWAVE:
-                            new_pos_x, new_pos_y = pos
-                            #player_center_pos = self.player.position.x - 8, self.player.position.y - 8
+                            new_pos_x, new_pos_y = hit_pos
                             player_center_pos = self.player.position.x, self.player.position.y
-                            distance = player_center_pos[0] - new_pos_x, player_center_pos[1] - new_pos_y
 
+                            direction = player_center_pos[0] - new_pos_x, player_center_pos[1] - new_pos_y
                             radius = projectile.radius
-                            if is_within_radius(player_center_pos, (new_pos_x, new_pos_y), radius*2):
-                                self.player.knockback = -pygame.Vector2(distance).normalize() * SHOCKWAVE_KNOCKBACK
+                            distance = get_distance(player_center_pos, (new_pos_x, new_pos_y))
+                            if distance < radius:
+                                self.player.knockback = -pygame.Vector2(direction).normalize() * SHOCKWAVE_KNOCKBACK
 
                             r = Ripple(pygame.Vector2(new_pos_x, new_pos_y), radius, color=pygame.Color(178,178,255,255), width=4)
                             r.lifetime *= .8
@@ -655,6 +655,23 @@ class Game:
 
                             for i in range(0, 6):
                                 self.particles.append(Spark(pygame.Vector2(new_pos_x, new_pos_y), i, (255, 255, 255, 120), .2, force=.12))
+
+                            for proj in self.client.projectiles:
+                                if proj == projectile:
+                                    continue
+
+                                distance = get_distance(proj .position, (new_pos_x, new_pos_y))
+                                if distance < radius:
+                                    direction = proj.position[0] - hit_pos.x, proj.position[1] - hit_pos.y
+                                    vel = pygame.Vector2(direction).normalize()
+
+                                    new_proj = Projectile(ProjectileType.SNIPER)
+                                    new_proj.position = proj.position
+                                    new_proj.velocity = (vel.x, vel.y)
+
+                                    self.client.send_shoot(new_proj.position, (vel.x, vel.y), ProjectileType.SNIPER)
+                                    projs_to_cleanup.append(proj)
+
                         else:
                             r = Ripple(pos.copy(), 20, force=1.5,
                                        color=pygame.Color(255, 255, 255), width=1)
@@ -697,7 +714,7 @@ class Game:
                 if projectile.remaining_bounces == 0:
                     projs_to_cleanup.append(projectile)
 
-            for projectile in projs_to_cleanup:
+            for projectile in set(projs_to_cleanup):
                 if projectile in self.client.projectiles:
                     self.client.projectiles.remove(projectile)
 

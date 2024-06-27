@@ -133,7 +133,7 @@ class Projectile:
             # Reflect the velocity on the y-axis
             vel_y = -vel_y
             # Set new position with reflected velocity
-            new_pos_y = y + vel_y * dt * Projectile.SPEED
+            new_pos_y = y + vel_y * dt * projectile.speed
 
         # Check for horizontal collisions
         if any(pygame.Rect(new_pos_x, y, 8, 8).colliderect(rect) for rect in collision_list):
@@ -141,7 +141,7 @@ class Projectile:
             # Reflect the velocity on the x-axis
             vel_x = -vel_x
             # Set new position with reflected velocity
-            new_pos_x = x + vel_x * dt * Projectile.SPEED
+            new_pos_x = x + vel_x * dt * projectile.speed
 
         projectile.velocity = (vel_x, vel_y)
 

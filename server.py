@@ -124,20 +124,27 @@ class Server:
                 if hit_pos:
                     self.check_interactive_projectiles(proj, interactable_tiles_list)
 
-                    if not proj.hurts:
-                        continue
+                    if proj.projectile_type == ProjectileType.SHOCKWAVE:
+                        for projectile in temp_proj.values():
+                            # the newly made projectile gets deleted by the server instantly.
+                            # we know that we always convert to sniper shots. for now. So we can simply check for this case
+                            if proj != projectile and projectile.projectile_type != ProjectileType.SNIPER:
+                                distance = get_distance(projectile.position, (hit_pos.x, hit_pos.y))
+                                if distance < proj.radius:
+                                    keys_to_remove.append(projectile.id)
 
-                    for player in list(filter(lambda x: x.alive, self.connections.values())):
-                        if player.id == proj.sender_id and proj.grace_period:
-                            # if sender is owner, and there is grace period left we skip
-                            continue
+                    if proj.hurts:
+                        for player in list(filter(lambda x: x.alive, self.connections.values())):
+                            if player.id == proj.sender_id and proj.grace_period:
+                                # if sender is owner, and there is grace period left we skip
+                                continue
 
-                        player_center_pos = player.position[0] - 16, player.position[1] - 16
-                        distance = get_distance(player_center_pos, proj.position)
+                            player_center_pos = player.position[0] - 16, player.position[1] - 16
+                            distance = get_distance(player_center_pos, proj.position)
 
-                        if distance < proj.radius:
-                            player.alive = self.lifecycle_state in NON_LETHAL_LIFECYCLES
-                            self.send_hit(proj.id, player.id)
+                            if distance < proj.radius:
+                                player.alive = self.lifecycle_state in NON_LETHAL_LIFECYCLES
+                                self.send_hit(proj.id, player.id)
             else:
                 Projectile.update_projectile(proj, collision_list, dt)
                 self.check_interactive_projectiles(proj, interactable_tiles_list)
@@ -145,9 +152,8 @@ class Server:
             if proj.remaining_bounces == 0:
                 keys_to_remove.append(proj_id)
 
-        for key in keys_to_remove:
-            del temp_proj[key]
-        self.projectiles = temp_proj
+        for key in set(keys_to_remove):
+            del self.projectiles[key]
 
     def update_lifecycle(self) -> None:
         if self.lifecycle_state == LifecycleType.WAITING_ROOM:
