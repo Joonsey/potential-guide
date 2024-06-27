@@ -1,9 +1,16 @@
-name: Build and Push Docker Image
+name: Build server image
 
 on:
   push:
     branches:
       - master
+    paths:
+      - arenas/
+      - arena.py
+      - settings.py
+      - server.py
+      - packet.py
+      - shared.py
 
 jobs:
   build-and-push:
